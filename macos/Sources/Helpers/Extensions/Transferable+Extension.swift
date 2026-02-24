@@ -41,7 +41,7 @@ private final class TransferableDataProvider: NSObject, NSPasteboardItemDataProv
         // calls this method on a background thread during drag operations.
         let semaphore = DispatchSemaphore(value: 0)
 
-        var result: Data?
+        nonisolated(unsafe) var result: Data?
         itemProvider.loadDataRepresentation(forTypeIdentifier: type.rawValue) { data, _ in
             result = data
             semaphore.signal()

@@ -59,82 +59,110 @@ enum UpdateSimulator {
 
     private func simulateHappyPath(_ viewModel: UpdateViewModel) {
         viewModel.state = .checking(.init(cancel: {
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .idle
+            }
         }))
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            viewModel.state = .updateAvailable(.init(
-                appcastItem: SUAppcastItem.empty(),
-                reply: { choice in
-                    if choice == .install {
-                        simulateDownload(viewModel)
-                    } else {
-                        viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .updateAvailable(.init(
+                    appcastItem: SUAppcastItem.empty(),
+                    reply: { choice in
+                        MainActor.assumeIsolated {
+                            if choice == .install {
+                                self.simulateDownload(viewModel)
+                            } else {
+                                viewModel.state = .idle
+                            }
+                        }
                     }
-                }
-            ))
+                ))
+            }
         }
     }
 
     private func simulateNotFound(_ viewModel: UpdateViewModel) {
         viewModel.state = .checking(.init(cancel: {
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .idle
+            }
         }))
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            viewModel.state = .notFound(.init(acknowledgement: {
-                // Acknowledgement called when dismissed
-            }))
+            MainActor.assumeIsolated {
+                viewModel.state = .notFound(.init(acknowledgement: {
+                    // Acknowledgement called when dismissed
+                }))
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                viewModel.state = .idle
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    MainActor.assumeIsolated {
+                        viewModel.state = .idle
+                    }
+                }
             }
         }
     }
 
     private func simulateError(_ viewModel: UpdateViewModel) {
         viewModel.state = .checking(.init(cancel: {
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .idle
+            }
         }))
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            viewModel.state = .error(.init(
-                error: NSError(domain: "UpdateError", code: 1, userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to check for updates"
-                ]),
-                retry: {
-                    simulateHappyPath(viewModel)
-                },
-                dismiss: {
-                    viewModel.state = .idle
-                }
-            ))
+            MainActor.assumeIsolated {
+                viewModel.state = .error(.init(
+                    error: NSError(domain: "UpdateError", code: 1, userInfo: [
+                        NSLocalizedDescriptionKey: "Failed to check for updates"
+                    ]),
+                    retry: {
+                        MainActor.assumeIsolated {
+                            self.simulateHappyPath(viewModel)
+                        }
+                    },
+                    dismiss: {
+                        MainActor.assumeIsolated {
+                            viewModel.state = .idle
+                        }
+                    }
+                ))
+            }
         }
     }
 
     private func simulateSlowDownload(_ viewModel: UpdateViewModel) {
         viewModel.state = .checking(.init(cancel: {
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .idle
+            }
         }))
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            viewModel.state = .updateAvailable(.init(
-                appcastItem: SUAppcastItem.empty(),
-                reply: { choice in
-                    if choice == .install {
-                        simulateSlowDownloadProgress(viewModel)
-                    } else {
-                        viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .updateAvailable(.init(
+                    appcastItem: SUAppcastItem.empty(),
+                    reply: { choice in
+                        MainActor.assumeIsolated {
+                            if choice == .install {
+                                self.simulateSlowDownloadProgress(viewModel)
+                            } else {
+                                viewModel.state = .idle
+                            }
+                        }
                     }
-                }
-            ))
+                ))
+            }
         }
     }
 
     private func simulateSlowDownloadProgress(_ viewModel: UpdateViewModel) {
         let download = UpdateState.Downloading(
             cancel: {
-                viewModel.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel.state = .idle
+                }
             },
             expectedLength: nil,
             progress: 0
@@ -143,16 +171,20 @@ enum UpdateSimulator {
 
         for i in 1...20 {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.5) {
-                let updatedDownload = UpdateState.Downloading(
-                    cancel: download.cancel,
-                    expectedLength: 2000,
-                    progress: UInt64(i * 100)
-                )
-                viewModel.state = .downloading(updatedDownload)
+                MainActor.assumeIsolated {
+                    let updatedDownload = UpdateState.Downloading(
+                        cancel: download.cancel,
+                        expectedLength: 2000,
+                        progress: UInt64(i * 100)
+                    )
+                    viewModel.state = .downloading(updatedDownload)
 
-                if i == 20 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        simulateExtract(viewModel)
+                    if i == 20 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            MainActor.assumeIsolated {
+                                self.simulateExtract(viewModel)
+                            }
+                        }
                     }
                 }
             }
@@ -164,10 +196,13 @@ enum UpdateSimulator {
         viewModel.state = .permissionRequest(.init(
             request: request,
             reply: { response in
-                if response.automaticUpdateChecks {
-                    simulateHappyPath(viewModel)
-                } else {
-                    viewModel.state = .idle
+                let autoChecks = response.automaticUpdateChecks
+                MainActor.assumeIsolated {
+                    if autoChecks {
+                        self.simulateHappyPath(viewModel)
+                    } else {
+                        viewModel.state = .idle
+                    }
                 }
             }
         ))
@@ -175,27 +210,35 @@ enum UpdateSimulator {
 
     private func simulateCancelDuringDownload(_ viewModel: UpdateViewModel) {
         viewModel.state = .checking(.init(cancel: {
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .idle
+            }
         }))
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            viewModel.state = .updateAvailable(.init(
-                appcastItem: SUAppcastItem.empty(),
-                reply: { choice in
-                    if choice == .install {
-                        simulateDownloadThenCancel(viewModel)
-                    } else {
-                        viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .updateAvailable(.init(
+                    appcastItem: SUAppcastItem.empty(),
+                    reply: { choice in
+                        MainActor.assumeIsolated {
+                            if choice == .install {
+                                self.simulateDownloadThenCancel(viewModel)
+                            } else {
+                                viewModel.state = .idle
+                            }
+                        }
                     }
-                }
-            ))
+                ))
+            }
         }
     }
 
     private func simulateDownloadThenCancel(_ viewModel: UpdateViewModel) {
         let download = UpdateState.Downloading(
             cancel: {
-                viewModel.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel.state = .idle
+                }
             },
             expectedLength: nil,
             progress: 0
@@ -204,16 +247,20 @@ enum UpdateSimulator {
 
         for i in 1...5 {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.3) {
-                let updatedDownload = UpdateState.Downloading(
-                    cancel: download.cancel,
-                    expectedLength: 1000,
-                    progress: UInt64(i * 100)
-                )
-                viewModel.state = .downloading(updatedDownload)
+                MainActor.assumeIsolated {
+                    let updatedDownload = UpdateState.Downloading(
+                        cancel: download.cancel,
+                        expectedLength: 1000,
+                        progress: UInt64(i * 100)
+                    )
+                    viewModel.state = .downloading(updatedDownload)
 
-                if i == 5 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        viewModel.state = .idle
+                    if i == 5 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            MainActor.assumeIsolated {
+                                viewModel.state = .idle
+                            }
+                        }
                     }
                 }
             }
@@ -222,18 +269,24 @@ enum UpdateSimulator {
 
     private func simulateCancelDuringChecking(_ viewModel: UpdateViewModel) {
         viewModel.state = .checking(.init(cancel: {
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .idle
+            }
         }))
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                viewModel.state = .idle
+            }
         }
     }
 
     private func simulateDownload(_ viewModel: UpdateViewModel) {
         let download = UpdateState.Downloading(
             cancel: {
-                viewModel.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel.state = .idle
+                }
             },
             expectedLength: nil,
             progress: 0
@@ -242,16 +295,20 @@ enum UpdateSimulator {
 
         for i in 1...10 {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.3) {
-                let updatedDownload = UpdateState.Downloading(
-                    cancel: download.cancel,
-                    expectedLength: 1000,
-                    progress: UInt64(i * 100)
-                )
-                viewModel.state = .downloading(updatedDownload)
+                MainActor.assumeIsolated {
+                    let updatedDownload = UpdateState.Downloading(
+                        cancel: download.cancel,
+                        expectedLength: 1000,
+                        progress: UInt64(i * 100)
+                    )
+                    viewModel.state = .downloading(updatedDownload)
 
-                if i == 10 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        simulateExtract(viewModel)
+                    if i == 10 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            MainActor.assumeIsolated {
+                                self.simulateExtract(viewModel)
+                            }
+                        }
                     }
                 }
             }
@@ -263,11 +320,15 @@ enum UpdateSimulator {
 
         for j in 1...5 {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(j) * 0.3) {
-                viewModel.state = .extracting(.init(progress: Double(j) / 5.0))
+                MainActor.assumeIsolated {
+                    viewModel.state = .extracting(.init(progress: Double(j) / 5.0))
 
-                if j == 5 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        simulateInstalling(viewModel)
+                    if j == 5 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            MainActor.assumeIsolated {
+                                self.simulateInstalling(viewModel)
+                            }
+                        }
                     }
                 }
             }
@@ -277,11 +338,15 @@ enum UpdateSimulator {
     private func simulateInstalling(_ viewModel: UpdateViewModel) {
         viewModel.state = .installing(.init(
             retryTerminatingApplication: {
-                print("Restart button clicked in simulator - resetting to idle")
-                viewModel.state = .idle
+                MainActor.assumeIsolated {
+                    print("Restart button clicked in simulator - resetting to idle")
+                    viewModel.state = .idle
+                }
             },
             dismiss: {
-                viewModel.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel.state = .idle
+                }
             }
         ))
     }
@@ -290,11 +355,15 @@ enum UpdateSimulator {
         viewModel.state = .installing(.init(
             isAutoUpdate: true,
             retryTerminatingApplication: {
-                print("Restart button clicked in simulator - resetting to idle")
-                viewModel.state = .idle
+                MainActor.assumeIsolated {
+                    print("Restart button clicked in simulator - resetting to idle")
+                    viewModel.state = .idle
+                }
             },
             dismiss: {
-                viewModel.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel.state = .idle
+                }
             }
         ))
     }

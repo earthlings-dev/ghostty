@@ -19,12 +19,14 @@ class TransparentTitlebarTerminalWindow: TerminalWindow {
 
     // MARK: NSWindow
 
-    override func awakeFromNib() {
-        super.awakeFromNib()
+    nonisolated override func awakeFromNib() {
+        MainActor.assumeIsolated {
+            super.awakeFromNib()
 
-        // Setup all the KVO we will use, see the docs for the respective functions
-        // to learn why we need KVO.
-        setupKVO()
+            // Setup all the KVO we will use, see the docs for the respective functions
+            // to learn why we need KVO.
+            setupKVO()
+        }
     }
 
     override func becomeMain() {
@@ -152,15 +154,17 @@ class TransparentTitlebarTerminalWindow: TerminalWindow {
             \.windows,
              options: [.new]
         ) { [weak self] _, _ in
-            // NOTE: At one point, I guarded this on only if we went from 0 to N
-            // or N to 0 under the assumption that the tab bar would only get
-            // replaced on those cases. This turned out to be false (Tahoe).
-            // It's cheap enough to always redraw this so we should just do it
-            // unconditionally.
+            MainActor.assumeIsolated {
+                // NOTE: At one point, I guarded this on only if we went from 0 to N
+                // or N to 0 under the assumption that the tab bar would only get
+                // replaced on those cases. This turned out to be false (Tahoe).
+                // It's cheap enough to always redraw this so we should just do it
+                // unconditionally.
 
-            guard let self else { return }
-            guard let lastSurfaceConfig else { return }
-            self.syncAppearance(lastSurfaceConfig)
+                guard let self else { return }
+                guard let lastSurfaceConfig = self.lastSurfaceConfig else { return }
+                self.syncAppearance(lastSurfaceConfig)
+            }
         }
     }
 
@@ -176,9 +180,11 @@ class TransparentTitlebarTerminalWindow: TerminalWindow {
             \.isTabBarVisible,
              options: [.new]
         ) { [weak self] _, _ in
-            guard let self else { return }
-            guard let lastSurfaceConfig else { return }
-            self.syncAppearance(lastSurfaceConfig)
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                guard let lastSurfaceConfig = self.lastSurfaceConfig else { return }
+                self.syncAppearance(lastSurfaceConfig)
+            }
         }
     }
 

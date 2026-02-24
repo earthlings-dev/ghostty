@@ -48,7 +48,7 @@ extension Ghostty {
     // MARK: Mods
 
     /// Returns the event modifier flags set for the Ghostty mods enum.
-    static func eventModifierFlags(mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
+    nonisolated static func eventModifierFlags(mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
         var flags = NSEvent.ModifierFlags(rawValue: 0)
         if mods.rawValue & GHOSTTY_MODS_SHIFT.rawValue != 0 { flags.insert(.shift) }
         if mods.rawValue & GHOSTTY_MODS_CTRL.rawValue != 0 { flags.insert(.control) }
@@ -58,7 +58,7 @@ extension Ghostty {
     }
 
     /// Translate event modifier flags to a ghostty mods enum.
-    static func ghosttyMods(_ flags: NSEvent.ModifierFlags) -> ghostty_input_mods_e {
+    nonisolated static func ghosttyMods(_ flags: NSEvent.ModifierFlags) -> ghostty_input_mods_e {
         var mods: UInt32 = GHOSTTY_MODS_NONE.rawValue
 
         if flags.contains(.shift) { mods |= GHOSTTY_MODS_SHIFT.rawValue }
@@ -102,7 +102,7 @@ extension Ghostty {
 
 // MARK: Ghostty.Input.BindingFlags
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_binding_flags_e`
     struct BindingFlags: OptionSet, Sendable {
         let rawValue: UInt32
@@ -128,7 +128,7 @@ extension Ghostty.Input {
 
 // MARK: Ghostty.Input.KeyEvent
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_key_s`
     struct KeyEvent {
         let action: Action
@@ -223,7 +223,7 @@ extension Ghostty.Input {
 
 // MARK: Ghostty.Input.Action
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_action_e`
     enum Action: String, CaseIterable {
         case release
@@ -240,10 +240,10 @@ extension Ghostty.Input {
     }
 }
 
-extension Ghostty.Input.Action: AppEnum {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Key Action")
+nonisolated extension Ghostty.Input.Action: AppEnum {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Key Action")
 
-    static var caseDisplayRepresentations: [Ghostty.Input.Action: DisplayRepresentation] = [
+    static let caseDisplayRepresentations: [Ghostty.Input.Action: DisplayRepresentation] = [
         .release: "Release",
         .press: "Press",
         .repeat: "Repeat"
@@ -252,7 +252,7 @@ extension Ghostty.Input.Action: AppEnum {
 
 // MARK: Ghostty.Input.MouseEvent
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// Represents a mouse input event with button state, button type, and modifier keys.
     struct MouseButtonEvent {
         let action: MouseState
@@ -337,7 +337,7 @@ extension Ghostty.Input {
 
 // MARK: Ghostty.Input.MouseState
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_mouse_state_e`
     enum MouseState: String, CaseIterable {
         case release
@@ -352,10 +352,10 @@ extension Ghostty.Input {
     }
 }
 
-extension Ghostty.Input.MouseState: AppEnum {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Mouse State")
+nonisolated extension Ghostty.Input.MouseState: AppEnum {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Mouse State")
 
-    static var caseDisplayRepresentations: [Ghostty.Input.MouseState: DisplayRepresentation] = [
+    static let caseDisplayRepresentations: [Ghostty.Input.MouseState: DisplayRepresentation] = [
         .release: "Release",
         .press: "Press"
     ]
@@ -363,7 +363,7 @@ extension Ghostty.Input.MouseState: AppEnum {
 
 // MARK: Ghostty.Input.MouseButton
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_mouse_button_e`
     enum MouseButton: String, CaseIterable {
         case unknown
@@ -417,17 +417,17 @@ extension Ghostty.Input {
     }
 }
 
-extension Ghostty.Input.MouseButton: AppEnum {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Mouse Button")
+nonisolated extension Ghostty.Input.MouseButton: AppEnum {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Mouse Button")
 
-    static var caseDisplayRepresentations: [Ghostty.Input.MouseButton: DisplayRepresentation] = [
+    static let caseDisplayRepresentations: [Ghostty.Input.MouseButton: DisplayRepresentation] = [
         .unknown: "Unknown",
         .left: "Left",
         .right: "Right",
         .middle: "Middle"
     ]
 
-    static var allCases: [Ghostty.Input.MouseButton] = [
+    static let allCases: [Ghostty.Input.MouseButton] = [
         .left,
         .right,
         .middle,
@@ -436,7 +436,7 @@ extension Ghostty.Input.MouseButton: AppEnum {
 
 // MARK: Ghostty.Input.ScrollMods
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_scroll_mods_t` - Scroll event modifiers
     ///
     /// This is a packed bitmask that contains precision and momentum information
@@ -476,7 +476,7 @@ extension Ghostty.Input {
 
 // MARK: Ghostty.Input.Momentum
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_mouse_momentum_e` - Momentum phase for scroll events
     enum Momentum: UInt8, CaseIterable {
         case none = 0
@@ -501,10 +501,10 @@ extension Ghostty.Input {
     }
 }
 
-extension Ghostty.Input.Momentum: AppEnum {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Scroll Momentum")
+nonisolated extension Ghostty.Input.Momentum: AppEnum {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Scroll Momentum")
 
-    static var caseDisplayRepresentations: [Ghostty.Input.Momentum: DisplayRepresentation] = [
+    static let caseDisplayRepresentations: [Ghostty.Input.Momentum: DisplayRepresentation] = [
         .none: "None",
         .began: "Began",
         .stationary: "Stationary",
@@ -518,7 +518,7 @@ extension Ghostty.Input.Momentum: AppEnum {
 #if canImport(AppKit)
 import AppKit
 
-extension Ghostty.Input.Momentum {
+nonisolated extension Ghostty.Input.Momentum {
     /// Create a Momentum from an NSEvent.Phase
     init(_ phase: NSEvent.Phase) {
         switch phase {
@@ -536,9 +536,9 @@ extension Ghostty.Input.Momentum {
 
 // MARK: Ghostty.Input.Mods
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_mods_e`
-    struct Mods: OptionSet {
+    nonisolated struct Mods: OptionSet {
         let rawValue: UInt32
 
         static let none = Mods(rawValue: GHOSTTY_MODS_NONE.rawValue)
@@ -576,7 +576,7 @@ extension Ghostty.Input {
 
 // MARK: Ghostty.Input.Key
 
-extension Ghostty.Input {
+nonisolated extension Ghostty.Input {
     /// `ghostty_input_key_e`
     enum Key: String {
         // Writing System Keys
@@ -1173,8 +1173,8 @@ extension Ghostty.Input {
     }
 }
 
-extension Ghostty.Input.Key: AppEnum {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Key")
+nonisolated extension Ghostty.Input.Key: AppEnum {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Key")
 
     // Only include keys that have Mac keycodes for App Intents
     static var allCases: [Ghostty.Input.Key] {
@@ -1223,7 +1223,7 @@ extension Ghostty.Input.Key: AppEnum {
         ]
     }
 
-    static var caseDisplayRepresentations: [Ghostty.Input.Key: DisplayRepresentation] = [
+    static let caseDisplayRepresentations: [Ghostty.Input.Key: DisplayRepresentation] = [
         // Letters (A-Z)
         .a: "A", .b: "B", .c: "C", .d: "D", .e: "E", .f: "F", .g: "G", .h: "H", .i: "I", .j: "J",
         .k: "K", .l: "L", .m: "M", .n: "N", .o: "O", .p: "P", .q: "Q", .r: "R", .s: "S", .t: "T",

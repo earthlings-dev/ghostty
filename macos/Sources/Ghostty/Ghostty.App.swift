@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 import UserNotifications
 import GhosttyKit
@@ -13,7 +14,8 @@ protocol GhosttyAppDelegate: AnyObject {
 extension Ghostty {
     // IMPORTANT: THIS IS NOT DONE.
     // This is a refactor/redo of Ghostty.AppState so that it supports both macOS and iOS
-    class App: ObservableObject {
+    @Observable
+    class App {
         enum Readiness: String {
             case loading, error, ready
         }
@@ -22,18 +24,18 @@ extension Ghostty {
         weak var delegate: GhosttyAppDelegate?
 
         /// The readiness value of the state.
-        @Published var readiness: Readiness = .loading
+        var readiness: Readiness = .loading
 
         /// The global app configuration. This defines the app level configuration plus any behavior
         /// for new windows, tabs, etc. Note that when creating a new window, it may inherit some
         /// configuration (i.e. font size) from the previously focused window. This would override this.
-        @Published private(set) var config: Config
+        private(set) var config: Config
 
         /// Preferred config file than the default ones
         private var configPath: String?
         /// The ghostty app instance. We only have one of these for the entire app, although I guess
         /// in theory you can have multiple... I don't know why you would...
-        @Published var app: ghostty_app_t? {
+        var app: ghostty_app_t? {
             didSet {
                 guard let old = oldValue else { return }
                 ghostty_app_free(old)
@@ -57,16 +59,8 @@ extension Ghostty {
 
             // Create our "runtime" config. The "runtime" is the configuration that ghostty
             // uses to interface with the application runtime environment.
-            var runtime_cfg = ghostty_runtime_config_s(
-                userdata: Unmanaged.passUnretained(self).toOpaque(),
-                supports_selection_clipboard: true,
-                wakeup_cb: { userdata in App.wakeup(userdata) },
-                action_cb: { app, target, action in App.action(app!, target: target, action: action) },
-                read_clipboard_cb: { userdata, loc, state in App.readClipboard(userdata, location: loc, state: state) },
-                confirm_read_clipboard_cb: { userdata, str, state, request in App.confirmReadClipboard(userdata, string: str, state: state, request: request ) },
-                write_clipboard_cb: { userdata, loc, content, len, confirm in
-                    App.writeClipboard(userdata, location: loc, content: content, len: len, confirm: confirm) },
-                close_surface_cb: { userdata, processAlive in App.closeSurface(userdata, processAlive: processAlive) }
+            var runtime_cfg = App.makeRuntimeConfig(
+                userdata: Unmanaged.passUnretained(self).toOpaque()
             )
 
             // Create the ghostty app.
@@ -103,12 +97,37 @@ extension Ghostty {
         }
 
         deinit {
-            // This will force the didSet callbacks to run which free.
-            self.app = nil
+            MainActor.assumeIsolated {
+                // This will force the didSet callbacks to run which free.
+                self.app = nil
 
 #if os(macOS)
-            NotificationCenter.default.removeObserver(self)
+                NotificationCenter.default.removeObserver(self)
 #endif
+            }
+        }
+
+        // MARK: Runtime Config
+
+        /// Build the runtime config struct in a nonisolated context so that
+        /// the C function pointer callbacks do not inherit MainActor isolation.
+        /// These callbacks are invoked from arbitrary Zig/C threads (e.g. the
+        /// renderer thread) and must not assert MainActor.
+        nonisolated static func makeRuntimeConfig(
+            userdata: UnsafeMutableRawPointer
+        ) -> ghostty_runtime_config_s {
+            ghostty_runtime_config_s(
+                userdata: userdata,
+                supports_selection_clipboard: true,
+                wakeup_cb: { userdata in App.wakeup(userdata) },
+                action_cb: { app, target, action in App.action(app!, target: target, action: action) },
+                read_clipboard_cb: { userdata, loc, state in App.readClipboard(userdata, location: loc, state: state) },
+                confirm_read_clipboard_cb: { userdata, str, state, request in App.confirmReadClipboard(userdata, string: str, state: state, request: request) },
+                write_clipboard_cb: { userdata, loc, content, len, confirm in
+                    App.writeClipboard(userdata, location: loc, content: content, len: len, confirm: confirm)
+                },
+                close_surface_cb: { userdata, processAlive in App.closeSurface(userdata, processAlive: processAlive) }
+            )
         }
 
         // MARK: App Operations
@@ -263,22 +282,22 @@ extension Ghostty {
         #if os(iOS)
         // MARK: Ghostty Callbacks (iOS)
 
-        static func wakeup(_ userdata: UnsafeMutableRawPointer?) {}
-        static func action(_ app: ghostty_app_t, target: ghostty_target_s, action: ghostty_action_s) -> Bool { return false }
-        static func readClipboard(
+        nonisolated static func wakeup(_ userdata: UnsafeMutableRawPointer?) {}
+        nonisolated static func action(_ app: ghostty_app_t, target: ghostty_target_s, action: ghostty_action_s) -> Bool { return false }
+        nonisolated static func readClipboard(
             _ userdata: UnsafeMutableRawPointer?,
             location: ghostty_clipboard_e,
             state: UnsafeMutableRawPointer?
         ) {}
 
-        static func confirmReadClipboard(
+        nonisolated static func confirmReadClipboard(
             _ userdata: UnsafeMutableRawPointer?,
             string: UnsafePointer<CChar>?,
             state: UnsafeMutableRawPointer?,
             request: ghostty_clipboard_request_e
         ) {}
 
-        static func writeClipboard(
+        nonisolated static func writeClipboard(
             _ userdata: UnsafeMutableRawPointer?,
             location: ghostty_clipboard_e,
             content: UnsafePointer<ghostty_clipboard_content_s>?,
@@ -286,7 +305,7 @@ extension Ghostty {
             confirm: Bool
         ) {}
 
-        static func closeSurface(_ userdata: UnsafeMutableRawPointer?, processAlive: Bool) {}
+        nonisolated static func closeSurface(_ userdata: UnsafeMutableRawPointer?, processAlive: Bool) {}
         #endif
 
         #if os(macOS)
@@ -313,51 +332,58 @@ extension Ghostty {
         }
 
         // MARK: Ghostty Callbacks (macOS)
+        // All callbacks are called from the Zig core thread and must be nonisolated.
+        // They bounce to the main thread since all AppKit/SwiftUI work must happen there.
+        // Raw pointers (non-Sendable in Swift 6.2 per SE-0331) that must cross isolation
+        // boundaries use `nonisolated(unsafe) let` — safe because their lifecycle is
+        // managed by the Zig core. @MainActor objects are extracted before the closure.
 
-        static func closeSurface(_ userdata: UnsafeMutableRawPointer?, processAlive: Bool) {
-            let surface = self.surfaceUserdata(from: userdata)
-            NotificationCenter.default.post(name: Notification.ghosttyCloseSurface, object: surface, userInfo: [
-                "process_alive": processAlive,
-            ])
-        }
-
-        static func readClipboard(_ userdata: UnsafeMutableRawPointer?, location: ghostty_clipboard_e, state: UnsafeMutableRawPointer?) {
-            // If we don't even have a surface, something went terrible wrong so we have
-            // to leak "state".
-            let surfaceView = self.surfaceUserdata(from: userdata)
-            guard let surface = surfaceView.surface else { return }
-
-            // Get our pasteboard
-            guard let pasteboard = NSPasteboard.ghostty(location) else {
-                return completeClipboardRequest(surface, data: "", state: state)
+        nonisolated static func closeSurface(_ userdata: UnsafeMutableRawPointer?, processAlive: Bool) {
+            let surface = surfaceUserdata(from: userdata)
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: Notification.ghosttyCloseSurface, object: surface, userInfo: [
+                    "process_alive": processAlive,
+                ])
             }
-
-            // Get our string
-            let str = pasteboard.getOpinionatedStringContents() ?? ""
-            completeClipboardRequest(surface, data: str, state: state)
         }
 
-        static func confirmReadClipboard(
+        nonisolated static func readClipboard(_ userdata: UnsafeMutableRawPointer?, location: ghostty_clipboard_e, state: UnsafeMutableRawPointer?) {
+            let surfaceView = surfaceUserdata(from: userdata)
+            nonisolated(unsafe) let state = state
+            Self.dispatchMainSync {
+                guard let surface = surfaceView.surface else { return }
+                guard let pasteboard = NSPasteboard.ghostty(location) else {
+                    return completeClipboardRequest(surface, data: "", state: state)
+                }
+                let str = pasteboard.getOpinionatedStringContents() ?? ""
+                completeClipboardRequest(surface, data: str, state: state)
+            }
+        }
+
+        nonisolated static func confirmReadClipboard(
             _ userdata: UnsafeMutableRawPointer?,
             string: UnsafePointer<CChar>?,
             state: UnsafeMutableRawPointer?,
             request: ghostty_clipboard_request_e
         ) {
-            let surface = self.surfaceUserdata(from: userdata)
+            let surface = surfaceUserdata(from: userdata)
             guard let valueStr = String(cString: string!, encoding: .utf8) else { return }
-            guard let request = Ghostty.ClipboardRequest.from(request: request) else { return }
-            NotificationCenter.default.post(
-                name: Notification.confirmClipboard,
-                object: surface,
-                userInfo: [
-                    Notification.ConfirmClipboardStrKey: valueStr,
-                    Notification.ConfirmClipboardStateKey: state as Any,
-                    Notification.ConfirmClipboardRequestKey: request,
-                ]
-            )
+            nonisolated(unsafe) let state = state
+            DispatchQueue.main.async {
+                guard let request = Ghostty.ClipboardRequest.from(request: request) else { return }
+                NotificationCenter.default.post(
+                    name: Notification.confirmClipboard,
+                    object: surface,
+                    userInfo: [
+                        Notification.ConfirmClipboardStrKey: valueStr,
+                        Notification.ConfirmClipboardStateKey: state as Any,
+                        Notification.ConfirmClipboardRequestKey: request,
+                    ]
+                )
+            }
         }
 
-        static func completeClipboardRequest(
+        nonisolated static func completeClipboardRequest(
             _ surface: ghostty_surface_t,
             data: String,
             state: UnsafeMutableRawPointer?,
@@ -368,59 +394,65 @@ extension Ghostty {
             }
         }
 
-        static func writeClipboard(
+        nonisolated static func writeClipboard(
             _ userdata: UnsafeMutableRawPointer?,
             location: ghostty_clipboard_e,
             content: UnsafePointer<ghostty_clipboard_content_s>?,
             len: Int,
             confirm: Bool
         ) {
-            let surface = self.surfaceUserdata(from: userdata)
-            guard let pasteboard = NSPasteboard.ghostty(location) else { return }
-            guard let content = content, len > 0 else { return }
-
-            // Convert the C array to Swift array
-            let contentArray = (0..<len).compactMap { i in
-                Ghostty.ClipboardContent.from(content: content[i])
+            let surface = surfaceUserdata(from: userdata)
+            // Convert content array from C before dispatching since the pointer won't be valid later
+            let contentArray: [Ghostty.ClipboardContent]
+            if let content, len > 0 {
+                contentArray = (0..<len).compactMap { i in
+                    Ghostty.ClipboardContent.from(content: content[i])
+                }
+            } else {
+                contentArray = []
             }
             guard !contentArray.isEmpty else { return }
 
-            // Assert there is only one text/plain entry. For security reasons we need
-            // to guarantee this for now since our confirmation dialog only shows one.
-            assert(contentArray.filter({ $0.mime == "text/plain" }).count <= 1,
-                   "clipboard contents should have at most one text/plain entry")
+            DispatchQueue.main.async {
+                guard let pasteboard = NSPasteboard.ghostty(location) else { return }
 
-            if !confirm {
-                // Declare all types
-                let types = contentArray.compactMap { item in
-                    NSPasteboard.PasteboardType(mimeType: item.mime)
+                // Assert there is only one text/plain entry. For security reasons we need
+                // to guarantee this for now since our confirmation dialog only shows one.
+                assert(contentArray.filter({ $0.mime == "text/plain" }).count <= 1,
+                       "clipboard contents should have at most one text/plain entry")
+
+                if !confirm {
+                    // Declare all types
+                    let types = contentArray.compactMap { item in
+                        NSPasteboard.PasteboardType(mimeType: item.mime)
+                    }
+                    pasteboard.declareTypes(types, owner: nil)
+
+                    // Set data for each type
+                    for item in contentArray {
+                        guard let type = NSPasteboard.PasteboardType(mimeType: item.mime) else { continue }
+                        pasteboard.setString(item.data, forType: type)
+                    }
+                    return
                 }
-                pasteboard.declareTypes(types, owner: nil)
 
-                // Set data for each type
-                for item in contentArray {
-                    guard let type = NSPasteboard.PasteboardType(mimeType: item.mime) else { continue }
-                    pasteboard.setString(item.data, forType: type)
+                // For confirmation, use the text/plain content if it exists
+                guard let textPlainContent = contentArray.first(where: { $0.mime == "text/plain" }) else {
+                    return
                 }
-                return
-            }
 
-            // For confirmation, use the text/plain content if it exists
-            guard let textPlainContent = contentArray.first(where: { $0.mime == "text/plain" }) else {
-                return
+                NotificationCenter.default.post(
+                    name: Notification.confirmClipboard,
+                    object: surface,
+                    userInfo: [
+                        Notification.ConfirmClipboardStrKey: textPlainContent.data,
+                        Notification.ConfirmClipboardRequestKey: Ghostty.ClipboardRequest.osc_52_write(pasteboard),
+                    ]
+                )
             }
-
-            NotificationCenter.default.post(
-                name: Notification.confirmClipboard,
-                object: surface,
-                userInfo: [
-                    Notification.ConfirmClipboardStrKey: textPlainContent.data,
-                    Notification.ConfirmClipboardRequestKey: Ghostty.ClipboardRequest.osc_52_write(pasteboard),
-                ]
-            )
         }
 
-        static func wakeup(_ userdata: UnsafeMutableRawPointer?) {
+        nonisolated static func wakeup(_ userdata: UnsafeMutableRawPointer?) {
             let state = Unmanaged<App>.fromOpaque(userdata!).takeUnretainedValue()
 
             // Wakeup can be called from any thread so we schedule the app tick
@@ -449,18 +481,33 @@ extension Ghostty {
         }
 
         /// Returns the surface view from the userdata.
-        static private func surfaceUserdata(from userdata: UnsafeMutableRawPointer?) -> SurfaceView {
+        nonisolated static private func surfaceUserdata(from userdata: UnsafeMutableRawPointer?) -> SurfaceView {
             return Unmanaged<SurfaceView>.fromOpaque(userdata!).takeUnretainedValue()
         }
 
-        static private func surfaceView(from surface: ghostty_surface_t) -> SurfaceView? {
+        nonisolated static private func surfaceView(from surface: ghostty_surface_t) -> SurfaceView? {
             guard let surface_ud = ghostty_surface_userdata(surface) else { return nil }
             return Unmanaged<SurfaceView>.fromOpaque(surface_ud).takeUnretainedValue()
         }
 
+        /// Dispatches a block synchronously on the main thread. If already on the main
+        /// thread, executes directly. Needed for C callbacks called from the Zig core
+        /// thread that must return a value from MainActor-isolated code.
+        nonisolated private static func dispatchMainSync<T: Sendable>(_ block: @Sendable @MainActor () -> T) -> T {
+            if Thread.isMainThread {
+                return MainActor.assumeIsolated { block() }
+            } else {
+                return DispatchQueue.main.sync {
+                    MainActor.assumeIsolated { block() }
+                }
+            }
+        }
+
         // MARK: Actions (macOS)
 
-        static func action(_ app: ghostty_app_t, target: ghostty_target_s, action: ghostty_action_s) -> Bool {
+        nonisolated static func action(_ app: ghostty_app_t, target: ghostty_target_s, action: ghostty_action_s) -> Bool {
+            nonisolated(unsafe) let app = app
+            return Self.dispatchMainSync {
             // Make sure it a target we understand so all our action handlers can assert
             switch target.tag {
             case GHOSTTY_TARGET_APP, GHOSTTY_TARGET_SURFACE:
@@ -656,6 +703,7 @@ extension Ghostty {
             // If we reached here then we assume performed since all unknown actions
             // are captured in the switch and return false.
             return true
+            }
         }
 
         private static func quit(_ app: ghostty_app_t) {
@@ -1364,14 +1412,19 @@ extension Ghostty {
 
                 let center = UNUserNotificationCenter.current()
                 center.requestAuthorization(options: [.alert, .sound]) { _, error in
-                    if let error = error {
-                        Ghostty.logger.error("Error while requesting notification authorization: \(error)")
+                    MainActor.assumeIsolated {
+                        if let error = error {
+                            Ghostty.logger.error("Error while requesting notification authorization: \(error)")
+                        }
                     }
                 }
 
                 center.getNotificationSettings { settings in
-                    guard settings.authorizationStatus == .authorized else { return }
-                    surfaceView.showUserNotification(title: title, body: body)
+                    let isAuthorized = settings.authorizationStatus == .authorized
+                    MainActor.assumeIsolated {
+                        guard isAuthorized else { return }
+                        surfaceView.showUserNotification(title: title, body: body)
+                    }
                 }
 
             default:

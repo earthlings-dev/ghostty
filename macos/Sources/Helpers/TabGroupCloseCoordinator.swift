@@ -35,7 +35,10 @@ class TabGroupCloseCoordinator {
     private var debounceTimer: Timer?
 
     deinit {
-        trigger(.tab)
+        MainActor.assumeIsolated {
+            debounceTimer?.invalidate()
+            closeRequests.forEach { $0.value(.tab) }
+        }
     }
 
     /// Call this from the windowShouldClose override in order to track whether
@@ -100,7 +103,9 @@ class TabGroupCloseCoordinator {
             withTimeInterval: Duration.milliseconds(100).timeInterval,
             repeats: false
         ) { [weak self] _ in
-            self?.trigger(.tab)
+            MainActor.assumeIsolated {
+                self?.trigger(.tab)
+            }
         }
     }
 

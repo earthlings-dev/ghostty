@@ -1,6 +1,5 @@
 import Sparkle
 import Cocoa
-import Combine
 
 /// Standard controller for managing Sparkle updates in Ghostty.
 ///
@@ -10,7 +9,7 @@ import Combine
 class UpdateController {
     private(set) var updater: SPUUpdater
     private let userDriver: UpdateDriver
-    private var installCancellable: AnyCancellable?
+    private var isForceInstalling: Bool = false
 
     var viewModel: UpdateViewModel {
         userDriver.viewModel
@@ -18,7 +17,7 @@ class UpdateController {
 
     /// True if we're installing an update.
     var isInstalling: Bool {
-        installCancellable != nil
+        isForceInstalling
     }
 
     /// Initialize a new update controller.
@@ -36,7 +35,9 @@ class UpdateController {
     }
 
     deinit {
-        installCancellable?.cancel()
+        MainActor.assumeIsolated {
+            isForceInstalling = false
+        }
     }
 
     /// Start the updater.
@@ -67,24 +68,35 @@ class UpdateController {
         guard viewModel.state.isInstallable else { return }
 
         // If we're already force installing then do nothing.
-        guard installCancellable == nil else { return }
+        guard !isForceInstalling else { return }
 
-        // Setup a combine listener to listen for state changes and to always
-        // confirm them. If we go to a non-installable state, cancel the listener.
-        // The sink runs immediately with the current state, so we don't need to
-        // manually confirm the first state.
-        installCancellable = viewModel.$state.sink { [weak self] state in
-            guard let self else { return }
+        isForceInstalling = true
 
-            // If we move to a non-installable state (error, idle, etc.) then we
-            // stop force installing.
-            guard state.isInstallable else {
-                self.installCancellable = nil
-                return
+        // Confirm the current state immediately, then observe for further changes.
+        viewModel.state.confirm()
+        observeStateForInstall()
+    }
+
+    /// Observe the view model's state using Swift Observation. Each time the state
+    /// changes, we either confirm the new state (to keep the install chain going)
+    /// or stop if we leave an installable state.
+    private func observeStateForInstall() {
+        guard isForceInstalling else { return }
+
+        withObservationTracking {
+            _ = viewModel.state
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self, self.isForceInstalling else { return }
+
+                guard self.viewModel.state.isInstallable else {
+                    self.isForceInstalling = false
+                    return
+                }
+
+                self.viewModel.state.confirm()
+                self.observeStateForInstall()
             }
-
-            // Continue the `yes` chain!
-            state.confirm()
         }
     }
 
@@ -99,7 +111,7 @@ class UpdateController {
         }
 
         // If we're not idle then we need to cancel any prior state.
-        installCancellable?.cancel()
+        isForceInstalling = false
         viewModel.state.cancel()
 
         // The above will take time to settle, so we delay the check for some time.

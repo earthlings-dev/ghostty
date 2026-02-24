@@ -106,8 +106,10 @@ extension Ghostty {
         private var dragCancelledByEscape: Bool = false
 
         deinit {
-            if let escapeMonitor {
-                NSEvent.removeMonitor(escapeMonitor)
+            MainActor.assumeIsolated {
+                if let escapeMonitor {
+                    NSEvent.removeMonitor(escapeMonitor)
+                }
             }
         }
 

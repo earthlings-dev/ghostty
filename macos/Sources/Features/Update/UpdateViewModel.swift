@@ -2,8 +2,9 @@ import Foundation
 import SwiftUI
 import Sparkle
 
-class UpdateViewModel: ObservableObject {
-    @Published var state: UpdateState = .idle
+@Observable
+class UpdateViewModel {
+    var state: UpdateState = .idle
 
     /// The text to display for the current update state.
     /// Returns an empty string for idle state, progress percentages for downloading/extracting,
@@ -282,7 +283,7 @@ enum UpdateState: Equatable {
         }
     }
 
-    enum ReleaseNotes {
+    nonisolated enum ReleaseNotes {
         case commit(URL)
         case compareTip(URL)
         case tagged(URL)

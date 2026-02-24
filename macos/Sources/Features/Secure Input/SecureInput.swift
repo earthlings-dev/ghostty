@@ -1,5 +1,6 @@
 import Carbon
 import Cocoa
+import Combine
 import OSLog
 
 // Manages the secure keyboard input state. Secure keyboard input is an old Carbon
@@ -58,13 +59,15 @@ class SecureInput: ObservableObject {
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        MainActor.assumeIsolated {
+            NotificationCenter.default.removeObserver(self)
 
-        // Reset our state so that we can ensure we set the proper secure input
-        // system state
-        scoped.removeAll()
-        global = false
-        apply()
+            // Reset our state so that we can ensure we set the proper secure input
+            // system state
+            scoped.removeAll()
+            global = false
+            apply()
+        }
     }
 
     // Add a scoped object that has secure input enabled. The focused value will

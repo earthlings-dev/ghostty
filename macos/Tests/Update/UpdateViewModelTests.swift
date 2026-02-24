@@ -4,6 +4,7 @@ import SwiftUI
 import Sparkle
 @testable import Ghostty
 
+@MainActor
 struct UpdateViewModelTests {
     // MARK: - Text Formatting Tests
 

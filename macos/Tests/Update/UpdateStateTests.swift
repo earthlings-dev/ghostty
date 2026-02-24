@@ -3,6 +3,7 @@ import Foundation
 import Sparkle
 @testable import Ghostty
 
+@MainActor
 struct UpdateStateTests {
     // MARK: - Equatable Tests
 

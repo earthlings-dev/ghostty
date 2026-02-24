@@ -1,6 +1,8 @@
 import AppKit
+import Combine
 import SwiftUI
-import UserNotifications
+import UniformTypeIdentifiers
+@preconcurrency import UserNotifications
 import OSLog
 import Sparkle
 import GhosttyKit
@@ -277,15 +279,14 @@ class AppDelegate: NSObject,
              options: [.new, .initial]
         ) { _, change in
             guard let appearance = change.newValue else { return }
-            guard let app = self.ghostty.app else { return }
-            let scheme: ghostty_color_scheme_e
-            if appearance.isDark {
-                scheme = GHOSTTY_COLOR_SCHEME_DARK
-            } else {
-                scheme = GHOSTTY_COLOR_SCHEME_LIGHT
+            let isDark = appearance.isDark
+            MainActor.assumeIsolated {
+                guard let app = self.ghostty.app else { return }
+                let scheme: ghostty_color_scheme_e = isDark
+                    ? GHOSTTY_COLOR_SCHEME_DARK
+                    : GHOSTTY_COLOR_SCHEME_LIGHT
+                ghostty_app_set_color_scheme(app, scheme)
             }
-
-            ghostty_app_set_color_scheme(app, scheme)
         }
 
         // Setup our menu
@@ -786,38 +787,42 @@ class AppDelegate: NSObject,
     private func ghosttyUpdateBadgeForBell() {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .authorized:
-                // Already authorized, check badge setting and set if enabled
-                if settings.badgeSetting == .enabled {
-                    DispatchQueue.main.async {
-                        self.setDockBadge()
-                    }
-                }
-
-            case .notDetermined:
-                // Not determined yet, request authorization for badge
-                center.requestAuthorization(options: [.badge]) { granted, error in
-                    if let error = error {
-                        Self.logger.warning("Error requesting badge authorization: \(error)")
-                        return
-                    }
-
-                    if granted {
-                        // Permission granted, set the badge
+            MainActor.assumeIsolated {
+                switch settings.authorizationStatus {
+                case .authorized:
+                    // Already authorized, check badge setting and set if enabled
+                    if settings.badgeSetting == .enabled {
                         DispatchQueue.main.async {
                             self.setDockBadge()
                         }
                     }
+
+                case .notDetermined:
+                    // Not determined yet, request authorization for badge
+                    center.requestAuthorization(options: [.badge]) { granted, error in
+                        MainActor.assumeIsolated {
+                            if let error = error {
+                                Self.logger.warning("Error requesting badge authorization: \(error)")
+                                return
+                            }
+
+                            if granted {
+                                // Permission granted, set the badge
+                                DispatchQueue.main.async {
+                                    self.setDockBadge()
+                                }
+                            }
+                        }
+                    }
+
+                case .denied, .provisional, .ephemeral:
+                    // In these known non-authorized states, do not attempt to set the badge.
+                    break
+
+                @unknown default:
+                    // Handle future unknown states by doing nothing.
+                    break
                 }
-
-            case .denied, .provisional, .ephemeral:
-                // In these known non-authorized states, do not attempt to set the badge.
-                break
-
-            @unknown default:
-                // Handle future unknown states by doing nothing.
-                break
             }
         }
     }
@@ -938,9 +943,6 @@ class AppDelegate: NSObject,
         NSApplication.shared.appearance = .init(ghosttyConfig: config)
     }
 
-    // Using AppIconActor to ensure this work
-    // happens synchronously in the background
-    @AppIconActor
     private func updateAppIcon(from config: Ghostty.Config) async {
         var appIcon: NSImage?
         var appIconName: String? = config.macosIcon.rawValue
@@ -1350,7 +1352,3 @@ private enum QuickTerminalState {
     case initialized(QuickTerminalController)
 }
 
-@globalActor
-private actor AppIconActor: GlobalActor {
-    static let shared = AppIconActor()
-}

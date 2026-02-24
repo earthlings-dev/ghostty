@@ -10,7 +10,7 @@ struct TerminalCommandPaletteView: View {
     @Binding var isPresented: Bool
 
     /// The configuration so we can lookup keyboard shortcuts.
-    @ObservedObject var ghosttyConfig: Ghostty.Config
+    var ghosttyConfig: Ghostty.Config
 
     /// The update view model for showing update commands.
     var updateViewModel: UpdateViewModel?
@@ -41,11 +41,11 @@ struct TerminalCommandPaletteView: View {
                 }
             }
         }
-        .onChange(of: isPresented) { newValue in
+        .onChange(of: isPresented) {
             // When the command palette disappears we need to send focus back to the
             // surface view we were overlaid on top of. There's probably a better way
             // to handle the first responder state here but I don't know it.
-            if !newValue {
+            if !isPresented {
                 // Has to be on queue because onChange happens on a user-interactive
                 // thread and Xcode is mad about this call on that.
                 DispatchQueue.main.async {

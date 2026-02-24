@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 import SwiftUI
 import CoreText
 import UserNotifications
@@ -55,8 +56,10 @@ extension Ghostty {
                 // If we have a new progress report, start a timer to remove it after 15 seconds
                 if progressReport != nil {
                     progressReportTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: false) { [weak self] _ in
-                        self?.progressReport = nil
-                        self?.progressReportTimer = nil
+                        MainActor.assumeIsolated {
+                            self?.progressReport = nil
+                            self?.progressReportTimer = nil
+                        }
                     }
                 }
             }
@@ -311,8 +314,10 @@ extension Ghostty {
 
             // Set a timer to show the ghost emoji after 500ms if no title is set
             titleFallbackTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
-                if let self = self, self.title.isEmpty {
-                    self.title = "👻"
+                MainActor.assumeIsolated {
+                    if let self = self, self.title.isEmpty {
+                        self.title = "👻"
+                    }
                 }
             }
 
@@ -404,30 +409,32 @@ extension Ghostty {
         }
 
         deinit {
-            // Remove all of our notificationcenter subscriptions
-            let center = NotificationCenter.default
-            center.removeObserver(self)
+            MainActor.assumeIsolated {
+                // Remove all of our notificationcenter subscriptions
+                let center = NotificationCenter.default
+                center.removeObserver(self)
 
-            // Remove our event monitor
-            if let eventMonitor {
-                NSEvent.removeMonitor(eventMonitor)
+                // Remove our event monitor
+                if let eventMonitor {
+                    NSEvent.removeMonitor(eventMonitor)
+                }
+
+                // Whenever the surface is removed, we need to note that our restorable
+                // state is invalid to prevent the surface from being restored.
+                invalidateRestorableState()
+
+                trackingAreas.forEach { removeTrackingArea($0) }
+
+                // Remove ourselves from secure input if we have to
+                SecureInput.shared.removeScoped(ObjectIdentifier(self))
+
+                // Remove any notifications associated with this surface
+                let identifiers = Array(self.notificationIdentifiers)
+                UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+
+                // Cancel progress report timer
+                progressReportTimer?.invalidate()
             }
-
-            // Whenever the surface is removed, we need to note that our restorable
-            // state is invalid to prevent the surface from being restored.
-            invalidateRestorableState()
-
-            trackingAreas.forEach { removeTrackingArea($0) }
-
-            // Remove ourselves from secure input if we have to
-            SecureInput.shared.removeScoped(ObjectIdentifier(self))
-
-            // Remove any notifications associated with this surface
-            let identifiers = Array(self.notificationIdentifiers)
-            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
-
-            // Cancel progress report timer
-            progressReportTimer?.invalidate()
         }
 
         func focusDidChange(_ focused: Bool) {
@@ -610,12 +617,14 @@ extension Ghostty {
                 withTimeInterval: 0.075,
                 repeats: false
             ) { [weak self] _ in
-                // Set the title if it wasn't manually set.
-                guard self?.titleFromTerminal == nil else {
-                    self?.titleFromTerminal = title
-                    return
+                MainActor.assumeIsolated {
+                    // Set the title if it wasn't manually set.
+                    guard self?.titleFromTerminal == nil else {
+                        self?.titleFromTerminal = title
+                        return
+                    }
+                    self?.title = title
                 }
-                self?.title = title
             }
         }
 
@@ -677,6 +686,7 @@ extension Ghostty {
         @objc private func onUpdateRendererHealth(notification: SwiftUI.Notification) {
             guard let healthAny = notification.userInfo?["health"] else { return }
             guard let health = healthAny as? ghostty_action_renderer_health_e else { return }
+            // Notification is posted from the Zig core thread via the action callback.
             DispatchQueue.main.async { [weak self] in
                 self?.healthy = health == GHOSTTY_RENDERER_HEALTH_OK
             }
@@ -685,12 +695,14 @@ extension Ghostty {
         @objc private func ghosttyDidContinueKeySequence(notification: SwiftUI.Notification) {
             guard let keyAny = notification.userInfo?[Ghostty.Notification.KeySequenceKey] else { return }
             guard let key = keyAny as? KeyboardShortcut else { return }
+            // Notification is posted from the Zig core thread via the action callback.
             DispatchQueue.main.async { [weak self] in
                 self?.keySequence.append(key)
             }
         }
 
         @objc private func ghosttyDidEndKeySequence(notification: SwiftUI.Notification) {
+            // Notification is posted from the Zig core thread via the action callback.
             DispatchQueue.main.async { [weak self] in
                 self?.keySequence = []
             }
@@ -699,6 +711,7 @@ extension Ghostty {
         @objc private func ghosttyDidChangeKeyTable(notification: SwiftUI.Notification) {
             guard let action = notification.userInfo?[Ghostty.Notification.KeyTableKey] as? Ghostty.Action.KeyTable else { return }
 
+            // Notification is posted from the Zig core thread via the action callback.
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 switch action {
@@ -718,7 +731,7 @@ extension Ghostty {
                 SwiftUI.Notification.Name.GhosttyConfigChangeKey
             ] as? Ghostty.Config else { return }
 
-            // Update our derived config
+            // Notification is posted from the Zig core thread via the action callback.
             DispatchQueue.main.async { [weak self] in
                 self?.derivedConfig = DerivedConfig(config)
             }
@@ -731,6 +744,7 @@ extension Ghostty {
 
             switch change.kind {
             case .background:
+                // Notification is posted from the Zig core thread via the action callback.
                 DispatchQueue.main.async { [weak self] in
                     self?.backgroundColor = change.color
                 }
@@ -1650,25 +1664,27 @@ extension Ghostty {
 
             // Note the callback may be executed on a background thread as documented
             // so we need @MainActor since we're reading/writing view state.
-            UNUserNotificationCenter.current().add(request) { @MainActor error in
-                if let error = error {
-                    AppDelegate.logger.error("Error scheduling user notification: \(error)")
-                    return
-                }
+            UNUserNotificationCenter.current().add(request) { error in
+                MainActor.assumeIsolated {
+                    if let error = error {
+                        AppDelegate.logger.error("Error scheduling user notification: \(error)")
+                        return
+                    }
 
-                // We need to keep track of this notification so we can remove it
-                // under certain circumstances
-                self.notificationIdentifiers.insert(uuid)
+                    // We need to keep track of this notification so we can remove it
+                    // under certain circumstances
+                    self.notificationIdentifiers.insert(uuid)
 
-                // If we're focused then we schedule to remove the notification
-                // after a few seconds. If we gain focus we automatically remove it
-                // in focusDidChange.
-                if self.focused {
-                    Task { @MainActor [weak self] in
-                        try await Task.sleep(for: .seconds(3))
-                        self?.notificationIdentifiers.remove(uuid)
-                        UNUserNotificationCenter.current()
-                            .removeDeliveredNotifications(withIdentifiers: [uuid])
+                    // If we're focused then we schedule to remove the notification
+                    // after a few seconds. If we gain focus we automatically remove it
+                    // in focusDidChange.
+                    if self.focused {
+                        Task { @MainActor [weak self] in
+                            try await Task.sleep(for: .seconds(3))
+                            self?.notificationIdentifiers.remove(uuid)
+                            UNUserNotificationCenter.current()
+                                .removeDeliveredNotifications(withIdentifiers: [uuid])
+                        }
                     }
                 }
             }

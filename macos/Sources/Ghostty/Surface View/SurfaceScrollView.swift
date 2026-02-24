@@ -72,7 +72,10 @@ class SurfaceScrollView: NSView {
             object: scrollView.contentView,
             queue: .main
         ) { [weak self] notification in
-            self?.handleScrollChange(notification)
+            nonisolated(unsafe) let notification = notification
+            MainActor.assumeIsolated {
+                self?.handleScrollChange(notification)
+            }
         })
 
         // Listen for scrollbar updates from Ghostty
@@ -81,7 +84,10 @@ class SurfaceScrollView: NSView {
             object: surfaceView,
             queue: .main
         ) { [weak self] notification in
-            self?.handleScrollbarUpdate(notification)
+            nonisolated(unsafe) let notification = notification
+            MainActor.assumeIsolated {
+                self?.handleScrollbarUpdate(notification)
+            }
         })
 
         // Listen for live scroll events
@@ -90,7 +96,9 @@ class SurfaceScrollView: NSView {
             object: scrollView,
             queue: .main
         ) { [weak self] _ in
-            self?.isLiveScrolling = true
+            MainActor.assumeIsolated {
+                self?.isLiveScrolling = true
+            }
         })
 
         observers.append(NotificationCenter.default.addObserver(
@@ -98,7 +106,9 @@ class SurfaceScrollView: NSView {
             object: scrollView,
             queue: .main
         ) { [weak self] _ in
-            self?.isLiveScrolling = false
+            MainActor.assumeIsolated {
+                self?.isLiveScrolling = false
+            }
         })
 
         observers.append(NotificationCenter.default.addObserver(
@@ -106,7 +116,9 @@ class SurfaceScrollView: NSView {
             object: scrollView,
             queue: .main
         ) { [weak self] _ in
-            self?.handleLiveScroll()
+            MainActor.assumeIsolated {
+                self?.handleLiveScroll()
+            }
         })
 
         observers.append(NotificationCenter.default.addObserver(
@@ -117,7 +129,9 @@ class SurfaceScrollView: NSView {
             // the posting thread.
             queue: nil
         ) { [weak self] _ in
-            self?.handleScrollerStyleChange()
+            MainActor.assumeIsolated {
+                self?.handleScrollerStyleChange()
+            }
         })
 
         // Listen for frame change events on macOS 26.0. See the docstring for
@@ -131,7 +145,10 @@ class SurfaceScrollView: NSView {
                 // the posting thread.
                 queue: nil
             ) { [weak self] notification in
-                self?.handleFrameChangeForNSScrollPocket(notification)
+                nonisolated(unsafe) let notification = notification
+                MainActor.assumeIsolated {
+                    self?.handleFrameChangeForNSScrollPocket(notification)
+                }
             })
         }}
 
@@ -156,7 +173,9 @@ class SurfaceScrollView: NSView {
     }
 
     deinit {
-        observers.forEach { NotificationCenter.default.removeObserver($0) }
+        MainActor.assumeIsolated {
+            observers.forEach { NotificationCenter.default.removeObserver($0) }
+        }
     }
 
     // The entire bounds is a safe area, so we override any default

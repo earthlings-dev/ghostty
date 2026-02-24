@@ -7,7 +7,7 @@ import Sparkle
 /// UI for checking, downloading, installing, or handling errors.
 struct UpdatePopoverView: View {
     /// The update view model that provides the current state and information
-    @ObservedObject var model: UpdateViewModel
+    var model: UpdateViewModel
 
     /// Environment value for dismissing the popover
     @Environment(\.dismiss) private var dismiss

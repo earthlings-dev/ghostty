@@ -21,17 +21,101 @@ struct Ghostty {
 
 // MARK: C Extensions
 
+// C value types are copied by value and opaque pointer types have their
+// lifecycle managed by the Zig core, so all of these are safe to send
+// across isolation boundaries.
+
 /// A command is fully self-contained so it is Sendable.
 extension ghostty_command_s: @unchecked @retroactive Sendable {}
 
-/// A surface is sendable because it is just a reference type. Using the surface in parameters
-/// may be unsafe but the value itself is safe to send across threads.
-extension ghostty_surface_t: @unchecked @retroactive Sendable {}
+// Note: In Swift 6.2, UnsafeMutableRawPointer and OpaquePointer Sendable
+// conformances are unavailable (SE-0331). Raw pointers that cross isolation
+// boundaries use `nonisolated(unsafe) let` at the call site instead.
+
+// Core structs
+extension ghostty_action_s: @unchecked @retroactive Sendable {}
+extension ghostty_target_s: @unchecked @retroactive Sendable {}
+extension ghostty_surface_size_s: @unchecked @retroactive Sendable {}
+extension ghostty_surface_config_s: @unchecked @retroactive Sendable {}
+extension ghostty_config_color_s: @unchecked @retroactive Sendable {}
+extension ghostty_config_color_list_s: @unchecked @retroactive Sendable {}
+extension ghostty_string_s: @unchecked @retroactive Sendable {}
+extension ghostty_point_s: @unchecked @retroactive Sendable {}
+extension ghostty_selection_s: @unchecked @retroactive Sendable {}
+extension ghostty_env_var_s: @unchecked @retroactive Sendable {}
+extension ghostty_runtime_config_s: @unchecked @retroactive Sendable {}
+extension ghostty_clipboard_content_s: @unchecked @retroactive Sendable {}
+
+// Action structs
+extension ghostty_action_color_change_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_config_change_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_cell_size_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_desktop_notification_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_initial_size_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_key_sequence_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_key_table_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_mouse_over_link_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_move_tab_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_open_url_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_progress_report_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_pwd_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_reload_config_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_resize_split_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_scrollbar_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_search_selected_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_search_total_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_set_title_s: @unchecked @retroactive Sendable {}
+extension ghostty_action_start_search_s: @unchecked @retroactive Sendable {}
+
+// Action enums
+extension ghostty_action_close_tab_mode_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_float_window_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_fullscreen_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_goto_split_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_goto_tab_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_goto_window_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_inspector_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_mouse_shape_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_mouse_visibility_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_open_url_kind_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_progress_report_state_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_prompt_title_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_readonly_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_renderer_health_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_resize_split_direction_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_secure_input_e: @unchecked @retroactive Sendable {}
+extension ghostty_action_split_direction_e: @unchecked @retroactive Sendable {}
+
+// Other enums
+extension ghostty_binding_flags_e: @unchecked @retroactive Sendable {}
+extension ghostty_build_mode_e: @unchecked @retroactive Sendable {}
+extension ghostty_clipboard_e: @unchecked @retroactive Sendable {}
+extension ghostty_clipboard_request_e: @unchecked @retroactive Sendable {}
+extension ghostty_color_scheme_e: @unchecked @retroactive Sendable {}
+extension ghostty_input_action_e: @unchecked @retroactive Sendable {}
+extension ghostty_input_mouse_button_e: @unchecked @retroactive Sendable {}
+extension ghostty_input_mouse_momentum_e: @unchecked @retroactive Sendable {}
+extension ghostty_input_mouse_state_e: @unchecked @retroactive Sendable {}
+extension ghostty_surface_context_e: @unchecked @retroactive Sendable {}
+
+// Input structs
+extension ghostty_input_key_s: @unchecked @retroactive Sendable {}
+extension ghostty_input_trigger_s: @unchecked @retroactive Sendable {}
+// Note: ghostty_input_scroll_mods_t is an Int32 typedef and already Sendable.
+extension ghostty_text_s: @unchecked @retroactive Sendable {}
+
+// Platform structs
+extension ghostty_platform_macos_s: @unchecked @retroactive Sendable {}
+
+// Config structs
+extension ghostty_config_command_list_s: @unchecked @retroactive Sendable {}
+extension ghostty_config_quick_terminal_size_s: @unchecked @retroactive Sendable {}
+extension ghostty_quick_terminal_size_s: @unchecked @retroactive Sendable {}
 
 // MARK: Build Info
 
 extension Ghostty {
-    struct Info {
+    struct Info: Sendable {
         var mode: ghostty_build_mode_e
         var version: String
     }
@@ -88,13 +172,15 @@ extension Ghostty {
         }
 
         deinit {
-            ghostty_string_free(cString)
+            MainActor.assumeIsolated {
+                ghostty_string_free(cString)
+            }
         }
     }
 }
 
 extension Ghostty {
-    enum SetFloatWIndow {
+    enum SetFloatWIndow: Sendable {
         case on
         case off
         case toggle
@@ -116,7 +202,7 @@ extension Ghostty {
         }
     }
 
-    enum SetSecureInput {
+    enum SetSecureInput: Sendable {
         case on
         case off
         case toggle
@@ -139,7 +225,7 @@ extension Ghostty {
     }
 
     /// An enum that is used for the directions that a split focus event can change.
-    enum SplitFocusDirection {
+    enum SplitFocusDirection: Sendable {
         case previous, next, up, down, left, right
 
         /// Initialize from a Ghostty API enum.
@@ -192,7 +278,7 @@ extension Ghostty {
     }
 
     /// Enum used for resizing splits. This is the direction the split divider will move.
-    enum SplitResizeDirection {
+    enum SplitResizeDirection: Sendable {
         case up, down, left, right
 
         static func from(direction: ghostty_action_resize_split_direction_e) -> Self? {
@@ -256,7 +342,7 @@ extension Ghostty.SplitFocusDirection {
 
 extension Ghostty {
     /// The type of a clipboard request
-    enum ClipboardRequest {
+    enum ClipboardRequest: @unchecked Sendable {
         /// A direct paste of clipboard contents
         case paste
 
@@ -300,11 +386,11 @@ extension Ghostty {
         }
     }
 
-    struct ClipboardContent {
+    struct ClipboardContent: Sendable {
         let mime: String
         let data: String
 
-        static func from(content: ghostty_clipboard_content_s) -> ClipboardContent? {
+        nonisolated static func from(content: ghostty_clipboard_content_s) -> ClipboardContent? {
             guard let mimePtr = content.mime,
                   let dataPtr = content.data else {
                 return nil

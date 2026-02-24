@@ -273,6 +273,19 @@ pub fn build(b: *std.Build) !void {
 
     // Tests
     {
+        const test_resources_dir = b.pathJoin(&.{
+            b.getInstallPath(.prefix, "share"),
+            "ghostty",
+        });
+        const test_state_dir = b.pathJoin(&.{
+            b.getInstallPath(.prefix, "state"),
+            "ghostty-test",
+        });
+        const test_state_env_var = if (builtin.os.tag == .windows)
+            "LOCALAPPDATA"
+        else
+            "XDG_STATE_HOME";
+
         // Full unit tests
         const test_exe = b.addTest(.{
             .name = "ghostty-test",
@@ -293,6 +306,14 @@ pub fn build(b: *std.Build) !void {
 
         // Normal test running
         const test_run = b.addRunArtifact(test_exe);
+        test_run.setEnvironmentVariable("GHOSTTY_RESOURCES_DIR", test_resources_dir);
+        test_run.setEnvironmentVariable(test_state_env_var, test_state_dir);
+        if (builtin.os.tag == .windows) {
+            // Preserve compatibility with platforms and codepaths that still
+            // read this variable directly.
+            test_run.setEnvironmentVariable("XDG_STATE_HOME", test_state_dir);
+        }
+        resources.addStepDependencies(&test_run.step);
         test_step.dependOn(&test_run.step);
 
         // Normal tests always test our libghostty modules
@@ -307,6 +328,14 @@ pub fn build(b: *std.Build) !void {
             "--gen-suppressions=all",
         });
         valgrind_run.addArtifactArg(test_exe);
+        valgrind_run.setEnvironmentVariable("GHOSTTY_RESOURCES_DIR", test_resources_dir);
+        valgrind_run.setEnvironmentVariable(test_state_env_var, test_state_dir);
+        if (builtin.os.tag == .windows) {
+            // Preserve compatibility with platforms and codepaths that still
+            // read this variable directly.
+            valgrind_run.setEnvironmentVariable("XDG_STATE_HOME", test_state_dir);
+        }
+        resources.addStepDependencies(&valgrind_run.step);
         test_valgrind_step.dependOn(&valgrind_run.step);
     }
 

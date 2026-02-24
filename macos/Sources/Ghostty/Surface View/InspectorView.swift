@@ -6,7 +6,7 @@ import GhosttyKit
 extension Ghostty {
     /// InspectableSurface is a type of Surface view that allows an inspector to be attached.
     struct InspectableSurface: View {
-        @EnvironmentObject var ghostty: Ghostty.App
+        @Environment(Ghostty.App.self) var ghostty
 
         /// Same as SurfaceWrapper, see the doc comments there.
         @ObservedObject var surfaceView: SurfaceView
@@ -39,10 +39,10 @@ extension Ghostty {
                 }
             }
             .onReceive(pubInspector) { onControlInspector($0) }
-            .onChange(of: surfaceView.inspectorVisible) { inspectorVisible in
+            .onChange(of: surfaceView.inspectorVisible) {
                 // When we show the inspector, we want to focus on the inspector.
                 // When we hide the inspector, we want to move focus back to the surface.
-                if inspectorVisible {
+                if surfaceView.inspectorVisible {
                     // We need to delay this until SwiftUI shows the inspector.
                     DispatchQueue.main.async {
                         _ = surfaceView.resignFirstResponder()
@@ -144,8 +144,10 @@ extension Ghostty {
         }
 
         deinit {
-            trackingAreas.forEach { removeTrackingArea($0) }
-            NotificationCenter.default.removeObserver(self)
+            MainActor.assumeIsolated {
+                trackingAreas.forEach { removeTrackingArea($0) }
+                NotificationCenter.default.removeObserver(self)
+            }
         }
 
         @objc private func windowDidChangeOcclusionState(_ notification: NSNotification) {

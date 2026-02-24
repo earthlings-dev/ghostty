@@ -133,11 +133,11 @@ struct CommandPaletteView: View {
                     break
                 }
             }
-            .onChange(of: query) { newValue in
+            .onChange(of: query) {
                 // If the user types a query then we want to make sure the first
                 // value is selected. If the user clears the query and we were selecting
                 // the first, we unset any selection.
-                if !newValue.isEmpty {
+                if !query.isEmpty {
                     if selectedIndex == nil {
                         selectedIndex = 0
                     }
@@ -177,13 +177,13 @@ struct CommandPaletteView: View {
         .shadow(radius: 32, x: 0, y: 12)
         .padding()
         .environment(\.colorScheme, scheme)
-        .onChange(of: isPresented) { newValue in
+        .onChange(of: isPresented) {
             // Reset focus when quickly showing and hiding.
             // macOS will destroy this view after a while,
             // so task/onAppear will not be called again.
             // If you toggle it rather quickly, we reset
             // it here when dismissing.
-            isTextFieldFocused = newValue
+            isTextFieldFocused = isPresented
             if !isPresented {
                 // This is optional, since most of the time
                 // there will be a delay before the next use.
@@ -272,8 +272,8 @@ private struct CommandPaletteQuery: View {
                 .frame(height: 48)
                 .textFieldStyle(.plain)
                 .focused($isTextFieldFocused)
-                .onChange(of: isTextFieldFocused) { focused in
-                    if !focused {
+                .onChange(of: isTextFieldFocused) {
+                    if !isTextFieldFocused {
                         onEvent?(.exit)
                     }
                 }
@@ -320,7 +320,7 @@ private struct CommandTable: View {
                     .padding(10)
                 }
                 .frame(maxHeight: 200)
-                .onChange(of: selectedIndex) { _ in
+                .onChange(of: selectedIndex) {
                     guard let selectedIndex,
                           selectedIndex < options.count else { return }
                     proxy.scrollTo(

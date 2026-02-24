@@ -98,12 +98,14 @@ class QuickTerminalController: BaseTerminalController {
     }
 
     deinit {
-        // Remove all of our notificationcenter subscriptions
-        let center = NotificationCenter.default
-        center.removeObserver(self)
+        MainActor.assumeIsolated {
+            // Remove all of our notificationcenter subscriptions
+            let center = NotificationCenter.default
+            center.removeObserver(self)
 
-        // Make sure we restore our hidden dock
-        hiddenDock = nil
+            // Make sure we restore our hidden dock
+            hiddenDock = nil
+        }
     }
 
     // MARK: NSWindowController
@@ -259,9 +261,7 @@ class QuickTerminalController: BaseTerminalController {
         // Check if target surface belongs to this quick terminal
         guard surfaceTree.contains(view) else { return }
         // Set the target surface as focused
-        DispatchQueue.main.async {
-            Ghostty.moveFocus(to: view)
-        }
+        Ghostty.moveFocus(to: view)
         // Animation completion handler will handle window/app activation
         animateIn()
     }
@@ -585,12 +585,14 @@ class QuickTerminalController: BaseTerminalController {
                 terminalSize: derivedConfig.quickTerminalSize,
                 closedFrame: window.frame)
         }, completionHandler: {
-            // This causes the window to be removed from the screen list and macOS
-            // handles what should be focused next.
-            window.orderOut(self)
-            // If our application is hidden previously, we hide it again
-            if (NSApp.delegate as? AppDelegate)?.hiddenState != nil {
-                NSApp.hide(nil)
+            MainActor.assumeIsolated {
+                // This causes the window to be removed from the screen list and macOS
+                // handles what should be focused next.
+                window.orderOut(self)
+                // If our application is hidden previously, we hide it again
+                if (NSApp.delegate as? AppDelegate)?.hiddenState != nil {
+                    NSApp.hide(nil)
+                }
             }
         })
     }
@@ -757,7 +759,9 @@ class QuickTerminalController: BaseTerminalController {
         }
 
         deinit {
-            restore()
+            MainActor.assumeIsolated {
+                restore()
+            }
         }
 
         func hide() {

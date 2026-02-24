@@ -31,16 +31,20 @@ class UpdateDriver: NSObject, SPUUserDriver {
         // close.
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) { [weak self] in
             guard let self else { return }
-            guard !hasUnobtrusiveTarget else { return }
-            viewModel.state.cancel()
-            viewModel.state = .idle
+            MainActor.assumeIsolated {
+                guard !self.hasUnobtrusiveTarget else { return }
+                self.viewModel.state.cancel()
+                self.viewModel.state = .idle
+            }
         }
     }
 
     func show(_ request: SPUUpdatePermissionRequest,
               reply: @escaping @Sendable (SUUpdatePermissionResponse) -> Void) {
         viewModel.state = .permissionRequest(.init(request: request, reply: { [weak viewModel] response in
-            viewModel?.state = .idle
+            MainActor.assumeIsolated {
+                viewModel?.state = .idle
+            }
             reply(response)
         }))
         if !hasUnobtrusiveTarget {
@@ -59,7 +63,11 @@ class UpdateDriver: NSObject, SPUUserDriver {
     func showUpdateFound(with appcastItem: SUAppcastItem,
                          state: SPUUserUpdateState,
                          reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void) {
-        viewModel.state = .updateAvailable(.init(appcastItem: appcastItem, reply: reply))
+        viewModel.state = .updateAvailable(.init(appcastItem: appcastItem, reply: { choice in
+            MainActor.assumeIsolated {
+                reply(choice)
+            }
+        }))
         if !hasUnobtrusiveTarget {
             standard.showUpdateFound(with: appcastItem, state: state, reply: reply)
         }
@@ -88,15 +96,21 @@ class UpdateDriver: NSObject, SPUUserDriver {
         viewModel.state = .error(.init(
             error: error,
             retry: { [weak self, weak viewModel] in
-                viewModel?.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel?.state = .idle
+                }
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    guard let delegate = NSApp.delegate as? AppDelegate else { return }
-                    delegate.checkForUpdates(self)
+                    MainActor.assumeIsolated {
+                        guard let delegate = NSApp.delegate as? AppDelegate else { return }
+                        delegate.checkForUpdates(self)
+                    }
                 }
             },
             dismiss: { [weak viewModel] in
-                viewModel?.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel?.state = .idle
+                }
             }))
 
         if !hasUnobtrusiveTarget {
@@ -175,7 +189,9 @@ class UpdateDriver: NSObject, SPUUserDriver {
         viewModel.state = .installing(.init(
             retryTerminatingApplication: retryTerminatingApplication,
             dismiss: { [weak viewModel] in
-                viewModel?.state = .idle
+                MainActor.assumeIsolated {
+                    viewModel?.state = .idle
+                }
             }
         ))
 

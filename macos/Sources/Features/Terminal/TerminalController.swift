@@ -1,5 +1,6 @@
 import Foundation
 import Cocoa
+import os
 import SwiftUI
 import Combine
 import GhosttyKit
@@ -964,16 +965,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             // Restore focus to the previously focused surface
             if let focusedUUID = undoState.focusedSurface,
                let focusTarget = surfaceTree.first(where: { $0.id == focusedUUID }) {
-                DispatchQueue.main.async {
-                    Ghostty.moveFocus(to: focusTarget, from: nil)
-                }
+                Ghostty.moveFocus(to: focusTarget, from: nil)
             } else if let focusedSurface = surfaceTree.first {
                 // No prior focused surface or we can't find it, let's focus
                 // the first.
                 self.focusedSurface = focusedSurface
-                DispatchQueue.main.async {
-                    Ghostty.moveFocus(to: focusedSurface, from: nil)
-                }
+                Ghostty.moveFocus(to: focusedSurface, from: nil)
             }
         }
     }

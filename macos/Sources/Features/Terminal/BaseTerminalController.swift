@@ -1,4 +1,5 @@
 import Cocoa
+import os
 import SwiftUI
 import Combine
 import GhosttyKit
@@ -213,10 +214,12 @@ class BaseTerminalController: NSWindowController,
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
-        undoManager?.removeAllActions(withTarget: self)
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
+        MainActor.assumeIsolated {
+            NotificationCenter.default.removeObserver(self)
+            undoManager?.removeAllActions(withTarget: self)
+            if let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+            }
         }
     }
 
@@ -266,12 +269,10 @@ class BaseTerminalController: NSWindowController,
         guard surfaceTree.contains(view) else { return }
 
         // Move focus to the target surface and activate the window/app
-        DispatchQueue.main.async {
-            Ghostty.moveFocus(to: view)
-            view.window?.makeKeyAndOrderFront(nil)
-            if !NSApp.isActive {
-                NSApp.activate(ignoringOtherApps: true)
-            }
+        Ghostty.moveFocus(to: view)
+        view.window?.makeKeyAndOrderFront(nil)
+        if !NSApp.isActive {
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 
@@ -466,9 +467,7 @@ class BaseTerminalController: NSWindowController,
         let oldTree = surfaceTree
         surfaceTree = newTree
         if let newView {
-            DispatchQueue.main.async {
-                Ghostty.moveFocus(to: newView, from: oldView)
-            }
+            Ghostty.moveFocus(to: newView, from: oldView)
         }
 
         // Setup our undo
@@ -483,9 +482,7 @@ class BaseTerminalController: NSWindowController,
         ) { target in
             target.surfaceTree = oldTree
             if let oldView {
-                DispatchQueue.main.async {
-                    Ghostty.moveFocus(to: oldView, from: target.focusedSurface)
-                }
+                Ghostty.moveFocus(to: oldView, from: target.focusedSurface)
             }
 
             undoManager.registerUndo(
@@ -644,9 +641,7 @@ class BaseTerminalController: NSWindowController,
         }
 
         // Move focus to the next surface
-        DispatchQueue.main.async {
-            Ghostty.moveFocus(to: nextSurface, from: target)
-        }
+        Ghostty.moveFocus(to: nextSurface, from: target)
     }
 
     @objc private func ghosttyDidToggleSplitZoom(_ notification: Notification) {
@@ -672,9 +667,7 @@ class BaseTerminalController: NSWindowController,
 
         // Ensure focus stays on the target surface. We lose focus when we do
         // this so we need to grab it again.
-        DispatchQueue.main.async {
-            Ghostty.moveFocus(to: target)
-        }
+        Ghostty.moveFocus(to: target)
     }
 
     @objc private func ghosttyDidResizeSplit(_ notification: Notification) {
@@ -1214,9 +1207,7 @@ class BaseTerminalController: NSWindowController,
         // want to move focus to our focused terminal surface. This works around
         // various weirdness with moving surfaces around.
         if let window, window.firstResponder == window, let focusedSurface {
-            DispatchQueue.main.async {
-                Ghostty.moveFocus(to: focusedSurface)
-            }
+            Ghostty.moveFocus(to: focusedSurface)
         }
 
         // Becoming/losing key means we have to notify our surface(s) that we have focus

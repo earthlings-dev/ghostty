@@ -6,11 +6,11 @@ extension Ghostty {
 }
 
 extension Ghostty.Action {
-    struct ColorChange {
+    struct ColorChange: Sendable {
         let kind: Kind
         let color: Color
 
-        enum Kind {
+        enum Kind: Sendable {
             case foreground
             case background
             case cursor
@@ -33,7 +33,7 @@ extension Ghostty.Action {
         }
     }
 
-    struct MoveTab {
+    struct MoveTab: Sendable {
         let amount: Int
 
         init(c: ghostty_action_move_tab_s) {
@@ -104,7 +104,7 @@ extension Ghostty.Action {
         let progress: UInt8?
     }
 
-    struct Scrollbar {
+    struct Scrollbar: Sendable {
         let total: UInt64
         let offset: UInt64
         let len: UInt64
@@ -142,7 +142,7 @@ extension Ghostty.Action {
         }
     }
 
-    enum KeyTable {
+    enum KeyTable: Sendable {
         case activate(name: String)
         case deactivate
         case deactivateAll

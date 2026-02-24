@@ -4,7 +4,7 @@ import AppIntents
 /// App intent that invokes a command palette entry.
 @available(macOS 14.0, *)
 struct CommandPaletteIntent: AppIntent {
-    static var title: LocalizedStringResource = "Invoke Command Palette Action"
+    static let title: LocalizedStringResource = "Invoke Command Palette Action"
 
     @Parameter(
         title: "Terminal",
@@ -21,7 +21,7 @@ struct CommandPaletteIntent: AppIntent {
 
 #if compiler(>=6.2)
     @available(macOS 26.0, *)
-    static var supportedModes: IntentModes = .background
+    static let supportedModes: IntentModes = .background
 #endif
 
     @MainActor

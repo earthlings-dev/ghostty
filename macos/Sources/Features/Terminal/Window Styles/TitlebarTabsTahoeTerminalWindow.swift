@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// `macos-titlebar-style = tabs` for macOS 26 (Tahoe) and later.
@@ -14,42 +15,40 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
     override var supportsUpdateAccessory: Bool { false }
 
     deinit {
-        tabBarObserver = nil
+        MainActor.assumeIsolated {
+            tabBarObserver = nil
+        }
     }
 
     // MARK: NSWindow
 
     override var titlebarFont: NSFont? {
         didSet {
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.viewModel.titleFont = self.titlebarFont
-            }
+            viewModel.titleFont = titlebarFont
         }
     }
 
     override var title: String {
         didSet {
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.viewModel.title = self.title
-            }
+            viewModel.title = title
         }
     }
 
-    override func awakeFromNib() {
-        super.awakeFromNib()
+    nonisolated override func awakeFromNib() {
+        MainActor.assumeIsolated {
+            super.awakeFromNib()
 
-        // We must hide the title since we're going to be moving tabs into
-        // the titlebar which have their own title.
-        titleVisibility = .hidden
+            // We must hide the title since we're going to be moving tabs into
+            // the titlebar which have their own title.
+            titleVisibility = .hidden
 
-        // Create a toolbar
-        let toolbar = NSToolbar(identifier: "TerminalToolbar")
-        toolbar.delegate = self
-        toolbar.centeredItemIdentifiers.insert(.title)
-        self.toolbar = toolbar
-        toolbarStyle = .unifiedCompact
+            // Create a toolbar
+            let toolbar = NSToolbar(identifier: "TerminalToolbar")
+            toolbar.delegate = self
+            toolbar.centeredItemIdentifiers.insert(.title)
+            self.toolbar = toolbar
+            toolbarStyle = .unifiedCompact
+        }
     }
 
     override func becomeMain() {
@@ -180,10 +179,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             let tabBarView = self.tabBarView
         else { return }
 
-        // View model updates must happen on their own ticks.
-        DispatchQueue.main.async { [weak self] in
-            self?.viewModel.hasTabBar = true
-        }
+        viewModel.hasTabBar = true
 
         // Find our clip view
         guard let clipView = tabBarView.firstSuperview(withClassName: "NSTitlebarAccessoryClipView") else { return }
@@ -234,24 +230,22 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             object: tabBarView,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
+            MainActor.assumeIsolated {
+                guard let self else { return }
 
-            // Remove the observer so we can call setup again.
-            self.tabBarObserver = nil
+                // Remove the observer so we can call setup again.
+                self.tabBarObserver = nil
 
-            // Wait a tick to let the new tab bars appear and then set them up.
-            DispatchQueue.main.async {
-                self.setupTabBar()
+                // Wait a tick to let the new tab bars appear and then set them up.
+                DispatchQueue.main.async {
+                    self.setupTabBar()
+                }
             }
         }
     }
 
     func removeTabBar() {
-        // View model needs to be updated on another tick because it
-        // triggers view updates.
-        DispatchQueue.main.async {
-            self.viewModel.hasTabBar = false
-        }
+        viewModel.hasTabBar = false
 
         // Clear our observations
         self.tabBarObserver = nil
@@ -291,11 +285,12 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
 
     // MARK: SwiftUI
 
-    class ViewModel: ObservableObject {
-        @Published var titleFont: NSFont?
-        @Published var title: String = "👻 Ghostty"
-        @Published var hasTabBar: Bool = false
-        @Published var isMainWindow: Bool = true
+    @Observable
+    class ViewModel {
+        var titleFont: NSFont?
+        var title: String = "👻 Ghostty"
+        var hasTabBar: Bool = false
+        var isMainWindow: Bool = true
     }
 }
 
@@ -307,7 +302,7 @@ extension NSToolbarItem.Identifier {
 extension TitlebarTabsTahoeTerminalWindow {
     /// Displays the window title
     struct TitleItem: View {
-        @ObservedObject var viewModel: ViewModel
+        var viewModel: ViewModel
 
         var title: String {
             // An empty title makes this view zero-sized and NSToolbar on macOS

@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UserNotifications
 import GhosttyKit
@@ -5,7 +6,7 @@ import GhosttyKit
 extension Ghostty {
     /// Render a terminal for the active app in the environment.
     struct Terminal: View {
-        @EnvironmentObject private var ghostty: Ghostty.App
+        @Environment(Ghostty.App.self) private var ghostty
 
         var body: some View {
             if let app = self.ghostty.app {
@@ -55,7 +56,7 @@ extension Ghostty {
         @ObservedObject private var secureInput = SecureInput.shared
         #endif
 
-        @EnvironmentObject private var ghostty: Ghostty.App
+        @Environment(Ghostty.App.self) private var ghostty
 
         var body: some View {
             let center = NotificationCenter.default
@@ -636,7 +637,7 @@ extension Ghostty {
 
     /// The configuration for a surface. For any configuration not set, defaults will be chosen from
     /// libghostty, usually from the Ghostty configuration.
-    struct SurfaceConfiguration {
+    struct SurfaceConfiguration: Sendable {
         /// Explicit font size to use in points
         var fontSize: Float32?
 
@@ -960,8 +961,8 @@ extension Ghostty {
                                 .opacity(dotOpacity(for: index))
                         }
                     }
-                    .onChange(of: context.date.timeIntervalSinceReferenceDate) { newValue in
-                        animationPhase = newValue
+                    .onChange(of: context.date.timeIntervalSinceReferenceDate) {
+                        animationPhase = context.date.timeIntervalSinceReferenceDate
                     }
                 }
             }
@@ -1034,8 +1035,8 @@ extension Ghostty {
             .allowsHitTesting(false)
             .opacity(highlighted ? 1.0 : 0.0)
             .animation(.easeOut(duration: 0.4), value: highlighted)
-            .onChange(of: highlighted) { newValue in
-                if newValue {
+            .onChange(of: highlighted) {
+                if highlighted {
                     withAnimation(.easeInOut(duration: 0.4).repeatForever(autoreverses: true)) {
                         borderPulse = true
                     }
