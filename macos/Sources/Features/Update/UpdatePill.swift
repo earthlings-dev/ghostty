@@ -3,7 +3,7 @@ import SwiftUI
 /// A pill-shaped button that displays update status and provides access to update actions.
 struct UpdatePill: View {
     /// The update view model that provides the current state and information
-    @ObservedObject var model: UpdateViewModel
+    var model: UpdateViewModel
 
     /// Whether the update popover is currently visible
     @State private var showPopover = false
@@ -21,9 +21,9 @@ struct UpdatePill: View {
                     UpdatePopoverView(model: model)
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                .onChange(of: model.state) { newState in
+                .onChange(of: model.state) {
                     resetTask?.cancel()
-                    if case .notFound(let notFound) = newState {
+                    if case .notFound(let notFound) = model.state {
                         resetTask = Task { [weak model] in
                             try? await Task.sleep(for: .seconds(5))
                             guard !Task.isCancelled, case .notFound? = model?.state else { return }

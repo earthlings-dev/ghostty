@@ -40,7 +40,7 @@ extension TerminalRestorable {
 }
 
 /// The state stored for terminal window restoration.
-class TerminalRestorableState: TerminalRestorable {
+class TerminalRestorableState: @preconcurrency TerminalRestorable {
     class var version: Int { 7 }
 
     let focusedSurface: String?

@@ -9,8 +9,8 @@ extension Ghostty {
     /// all over.
     ///
     /// Wraps a `ghostty_surface_t`
-    final class Surface: Sendable {
-        private let surface: ghostty_surface_t
+    final class Surface: @unchecked Sendable {
+        nonisolated(unsafe) private let surface: ghostty_surface_t
 
         /// Read the underlying C value for this surface. This is unsafe because the value will be
         /// freed when the Surface class is deinitialized.

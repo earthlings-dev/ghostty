@@ -2,7 +2,7 @@ import AppKit
 import AppIntents
 import SwiftUI
 
-struct TerminalEntity: AppEntity {
+struct TerminalEntity: @preconcurrency AppEntity {
     let id: UUID
 
     @Property(title: "Title")
@@ -42,7 +42,7 @@ struct TerminalEntity: AppEntity {
         surfaceView?.surfaceModel
     }
 
-    static var defaultQuery = TerminalQuery()
+    static let defaultQuery = TerminalQuery()
 
     @MainActor
     init(_ view: Ghostty.SurfaceView) {
@@ -63,13 +63,13 @@ struct TerminalEntity: AppEntity {
 }
 
 extension TerminalEntity {
-    enum Kind: String, AppEnum {
+    nonisolated enum Kind: String, AppEnum {
         case normal
         case quick
 
-        static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Terminal Kind")
+        static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Terminal Kind")
 
-        static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
             .normal: .init(title: "Normal"),
             .quick: .init(title: "Quick")
         ]

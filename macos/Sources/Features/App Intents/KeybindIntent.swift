@@ -2,7 +2,7 @@ import AppKit
 import AppIntents
 
 struct KeybindIntent: AppIntent {
-    static var title: LocalizedStringResource = "Invoke a Keybind Action"
+    static let title: LocalizedStringResource = "Invoke a Keybind Action"
 
     @Parameter(
         title: "Terminal",
@@ -18,7 +18,7 @@ struct KeybindIntent: AppIntent {
 
 #if compiler(>=6.2)
     @available(macOS 26.0, *)
-    static var supportedModes: IntentModes = [.background, .foreground]
+    static let supportedModes: IntentModes = [.background, .foreground]
 #endif
 
     @MainActor

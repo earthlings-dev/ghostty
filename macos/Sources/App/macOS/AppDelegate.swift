@@ -1,6 +1,8 @@
 import AppKit
+import Combine
 import SwiftUI
-import UserNotifications
+import UniformTypeIdentifiers
+@preconcurrency import UserNotifications
 import OSLog
 import Sparkle
 import GhosttyKit
@@ -293,15 +295,14 @@ class AppDelegate: NSObject,
              options: [.new, .initial]
         ) { _, change in
             guard let appearance = change.newValue else { return }
-            guard let app = self.ghostty.app else { return }
-            let scheme: ghostty_color_scheme_e
-            if appearance.isDark {
-                scheme = GHOSTTY_COLOR_SCHEME_DARK
-            } else {
-                scheme = GHOSTTY_COLOR_SCHEME_LIGHT
+            let isDark = appearance.isDark
+            MainActor.assumeIsolated {
+                guard let app = self.ghostty.app else { return }
+                let scheme: ghostty_color_scheme_e = isDark
+                    ? GHOSTTY_COLOR_SCHEME_DARK
+                    : GHOSTTY_COLOR_SCHEME_LIGHT
+                ghostty_app_set_color_scheme(app, scheme)
             }
-
-            ghostty_app_set_color_scheme(app, scheme)
         }
 
         // Setup our menu

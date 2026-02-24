@@ -1,4 +1,5 @@
 import Cocoa
+import SwiftUI
 
 /// Titlebar tabs for macOS 13 to 15.
 class TitlebarTabsVenturaTerminalWindow: TerminalWindow {
@@ -29,16 +30,18 @@ class TitlebarTabsVenturaTerminalWindow: TerminalWindow {
 
     // MARK: NSWindow
 
-    override func awakeFromNib() {
-        super.awakeFromNib()
+    nonisolated override func awakeFromNib() {
+        MainActor.assumeIsolated {
+            super.awakeFromNib()
 
-        titlebarTabs = true
+            titlebarTabs = true
 
-        // Set the background color of the window
-        backgroundColor = derivedConfig.backgroundColor
+            // Set the background color of the window
+            backgroundColor = derivedConfig.backgroundColor
 
-        // This makes sure our titlebar renders correctly when there is a transparent background
-        titlebarColor = derivedConfig.backgroundColor.withAlphaComponent(derivedConfig.backgroundOpacity)
+            // This makes sure our titlebar renders correctly when there is a transparent background
+            titlebarColor = derivedConfig.backgroundColor.withAlphaComponent(derivedConfig.backgroundOpacity)
+        }
     }
 
     // We only need to set this once, but need to do it after the window has been created in order

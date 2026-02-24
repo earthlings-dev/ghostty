@@ -22,7 +22,7 @@ struct CommandEntity: AppEntity {
     let command: Ghostty.Command
 
     /// A command identifier is a composite key based on the terminal and action.
-    struct ID: Hashable {
+    nonisolated struct ID: Hashable, Sendable {
         let terminalId: TerminalEntity.ID
         let actionKey: String
     }
@@ -38,7 +38,7 @@ struct CommandEntity: AppEntity {
         )
     }
 
-    static var defaultQuery = CommandQuery()
+    static let defaultQuery = CommandQuery()
 
     init(_ command: Ghostty.Command, for terminal: TerminalEntity) {
         self.id = .init(terminalId: terminal.id, actionKey: command.actionKey)
@@ -50,7 +50,7 @@ struct CommandEntity: AppEntity {
 }
 
 @available(macOS 14.0, *)
-extension CommandEntity.ID: RawRepresentable {
+nonisolated extension CommandEntity.ID: RawRepresentable {
     var rawValue: String {
         return "\(terminalId):\(actionKey)"
     }
@@ -70,7 +70,7 @@ extension CommandEntity.ID: RawRepresentable {
 
 // Required by AppEntity
 @available(macOS 14.0, *)
-extension CommandEntity.ID: EntityIdentifierConvertible {
+nonisolated extension CommandEntity.ID: EntityIdentifierConvertible {
     static func entityIdentifier(for entityIdentifierString: String) -> CommandEntity.ID? {
         .init(rawValue: entityIdentifierString)
     }

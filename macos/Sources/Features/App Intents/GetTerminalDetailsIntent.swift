@@ -3,7 +3,7 @@ import AppIntents
 
 /// App intent that retrieves details about a specific terminal.
 struct GetTerminalDetailsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Details of Terminal"
+    static let title: LocalizedStringResource = "Get Details of Terminal"
 
     @Parameter(
         title: "Detail",
@@ -19,7 +19,7 @@ struct GetTerminalDetailsIntent: AppIntent {
 
 #if compiler(>=6.2)
     @available(macOS 26.0, *)
-    static var supportedModes: IntentModes = .background
+    static let supportedModes: IntentModes = .background
 #endif
 
     static var parameterSummary: some ParameterSummary {
@@ -50,7 +50,7 @@ struct GetTerminalDetailsIntent: AppIntent {
 
 // MARK: TerminalDetail
 
-enum TerminalDetail: String {
+nonisolated enum TerminalDetail: String {
     case title
     case workingDirectory
     case allContents
@@ -58,10 +58,10 @@ enum TerminalDetail: String {
     case visibleText
 }
 
-extension TerminalDetail: AppEnum {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Terminal Detail")
+nonisolated extension TerminalDetail: AppEnum {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Terminal Detail")
 
-    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+    static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
         .title: .init(title: "Title"),
         .workingDirectory: .init(title: "Working Directory"),
         .allContents: .init(title: "Full Contents"),

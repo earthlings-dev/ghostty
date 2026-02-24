@@ -4,18 +4,20 @@ class HiddenTitlebarTerminalWindow: TerminalWindow {
     // No titlebar, we don't support accessories.
     override var supportsUpdateAccessory: Bool { false }
 
-    override func awakeFromNib() {
-        super.awakeFromNib()
+    nonisolated override func awakeFromNib() {
+        MainActor.assumeIsolated {
+            super.awakeFromNib()
 
-        // Setup our initial style
-        reapplyHiddenStyle()
+            // Setup our initial style
+            reapplyHiddenStyle()
 
-        // Notifications
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(fullscreenDidExit(_:)),
-            name: .fullscreenDidExit,
-            object: nil)
+            // Notifications
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(fullscreenDidExit(_:)),
+                name: .fullscreenDidExit,
+                object: nil)
+        }
     }
 
     deinit {

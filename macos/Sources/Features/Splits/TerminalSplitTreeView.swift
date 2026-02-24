@@ -45,7 +45,7 @@ struct TerminalSplitTreeView: View {
 }
 
 private struct TerminalSplitSubtreeView: View {
-    @EnvironmentObject var ghostty: Ghostty.App
+    @Environment(Ghostty.App.self) var ghostty
 
     let node: SplitTree<Ghostty.SurfaceView>.Node
     var isRoot: Bool = false
@@ -191,7 +191,7 @@ private struct TerminalSplitLeaf: View {
     }
 }
 
-enum TerminalSplitDropZone: String, Equatable {
+nonisolated enum TerminalSplitDropZone: String, Equatable {
     case top
     case bottom
     case left

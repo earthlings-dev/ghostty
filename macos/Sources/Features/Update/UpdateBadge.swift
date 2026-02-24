@@ -8,7 +8,7 @@ import SwiftUI
 /// - Static icon for other states
 struct UpdateBadge: View {
     /// The update view model that provides the current state and progress
-    @ObservedObject var model: UpdateViewModel
+    var model: UpdateViewModel
 
     /// Current rotation angle for animated icon states
     @State private var rotationAngle: Double = 0

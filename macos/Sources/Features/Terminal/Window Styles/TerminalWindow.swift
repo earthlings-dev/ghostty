@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import GhosttyKit
 
@@ -72,14 +73,12 @@ class TerminalWindow: NSWindow {
 
     override var toolbar: NSToolbar? {
         didSet {
-            DispatchQueue.main.async {
-                // When we have a toolbar, our SwiftUI view needs to know for layout
-                self.viewModel.hasToolbar = self.toolbar != nil
-            }
+            viewModel.hasToolbar = toolbar != nil
         }
     }
 
-    override func awakeFromNib() {
+    nonisolated override func awakeFromNib() {
+      MainActor.assumeIsolated {
         // Notify that this terminal window has loaded
         NotificationCenter.default.post(name: Self.terminalDidAwake, object: self)
 
@@ -90,8 +89,14 @@ class TerminalWindow: NSWindow {
             object: nil,
             queue: .main
         ) { [weak self] n in
-            guard let self, let menu = n.object as? NSMenu else { return }
-            self.configureTabContextMenuIfNeeded(menu)
+            // Extract the menu before the isolation boundary. This observer
+            // runs on .main queue so we know we're on the main thread.
+            nonisolated(unsafe) let menu = n.object as? NSMenu
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                guard let menu else { return }
+                self.configureTabContextMenuIfNeeded(menu)
+            }
         }
 
         // This is required so that window restoration properly creates our tabs
@@ -362,10 +367,7 @@ class TerminalWindow: NSWindow {
             // Show/hide our reset zoom button depending on if we're zoomed.
             // We want to show it if we are zoomed.
             resetZoomTabButton.isHidden = !surfaceIsZoomed
-
-            DispatchQueue.main.async {
-                self.viewModel.isSurfaceZoomed = self.surfaceIsZoomed
-            }
+            viewModel.isSurfaceZoomed = surfaceIsZoomed
         }
     }
 
@@ -574,8 +576,10 @@ class TerminalWindow: NSWindow {
     }
 
     deinit {
-        if let observer = tabMenuObserver {
-            NotificationCenter.default.removeObserver(observer)
+        MainActor.assumeIsolated {
+            if let observer = tabMenuObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
         }
     }
 
@@ -624,10 +628,11 @@ class TerminalWindow: NSWindow {
 // MARK: SwiftUI View
 
 extension TerminalWindow {
-    class ViewModel: ObservableObject {
-        @Published var isSurfaceZoomed: Bool = false
-        @Published var hasToolbar: Bool = false
-        @Published var isMainWindow: Bool = true
+    @Observable
+    class ViewModel {
+        var isSurfaceZoomed: Bool = false
+        var hasToolbar: Bool = false
+        var isMainWindow: Bool = true
 
         /// Calculates the top padding based on toolbar visibility and macOS version
         fileprivate var accessoryTopPadding: CGFloat {
@@ -640,7 +645,7 @@ extension TerminalWindow {
     }
 
     struct ResetZoomAccessoryView: View {
-        @ObservedObject var viewModel: ViewModel
+        var viewModel: ViewModel
         let action: () -> Void
 
         var body: some View {
@@ -666,8 +671,8 @@ extension TerminalWindow {
 
     /// A pill-shaped button that displays update status and provides access to update actions.
     struct UpdateAccessoryView: View {
-        @ObservedObject var viewModel: ViewModel
-        @ObservedObject var model: UpdateViewModel
+        var viewModel: ViewModel
+        var model: UpdateViewModel
 
         var body: some View {
             // We use the same top/trailing padding so that it hugs the same.

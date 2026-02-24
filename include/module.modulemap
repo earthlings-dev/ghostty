@@ -4,4 +4,19 @@
 module GhosttyKit {
     umbrella header "ghostty.h"
     export *
+
+    // The vt/ headers are a separate, work-in-progress C library for
+    // terminal protocol handling. They are not part of the main embedding
+    // API and must be excluded from the umbrella to avoid warnings.
+    exclude header "ghostty/vt.h"
+    exclude header "ghostty/vt/allocator.h"
+    exclude header "ghostty/vt/color.h"
+    exclude header "ghostty/vt/key.h"
+    exclude header "ghostty/vt/key/encoder.h"
+    exclude header "ghostty/vt/key/event.h"
+    exclude header "ghostty/vt/osc.h"
+    exclude header "ghostty/vt/paste.h"
+    exclude header "ghostty/vt/result.h"
+    exclude header "ghostty/vt/sgr.h"
+    exclude header "ghostty/vt/wasm.h"
 }

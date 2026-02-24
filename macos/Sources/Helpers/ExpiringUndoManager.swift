@@ -117,7 +117,9 @@ private class ExpiringTarget {
         self.timer = Timer.scheduledTimer(
             withTimeInterval: duration.timeInterval,
             repeats: false) { [weak self] _ in
-            self?.expire()
+            MainActor.assumeIsolated {
+                self?.expire()
+            }
         }
     }
 
@@ -133,7 +135,9 @@ private class ExpiringTarget {
     }
 
     deinit {
-        expire()
+        MainActor.assumeIsolated {
+            timer?.invalidate()
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 import Cocoa
 
-struct QuickTerminalRestorableState: TerminalRestorable {
+struct QuickTerminalRestorableState: @preconcurrency TerminalRestorable {
     static var version: Int { 1 }
 
     let focusedSurface: String?

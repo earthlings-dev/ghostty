@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 #if !DOCK_TILE_PLUGIN
 import GhosttyKit
