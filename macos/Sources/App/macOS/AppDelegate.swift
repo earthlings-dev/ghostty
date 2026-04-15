@@ -676,14 +676,16 @@ class AppDelegate: NSObject,
 
     private func requestBadgeAuthorizationAndSet(_ center: UNUserNotificationCenter) {
         center.requestAuthorization(options: [.badge]) { granted, error in
-            if let error = error {
-                Self.logger.warning("Error requesting badge authorization: \(error)")
-                return
-            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
 
-            // Permission granted, set the badge
-            if granted {
-                DispatchQueue.main.async {
+                if let error = error {
+                    Self.logger.warning("Error requesting badge authorization: \(error)")
+                    return
+                }
+
+                // Permission granted, set the badge
+                if granted {
                     self.setDockBadge()
                 }
             }
@@ -693,31 +695,33 @@ class AppDelegate: NSObject,
     private func syncDockBadge() {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .authorized:
-                // If we're authorized and allow badges, then set the badge.
-                if settings.badgeSetting == .enabled {
-                    DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+
+                switch settings.authorizationStatus {
+                case .authorized:
+                    // If we're authorized and allow badges, then set the badge.
+                    if settings.badgeSetting == .enabled {
                         self.setDockBadge()
+                    } else if settings.badgeSetting == .notSupported {
+                        // If badge setting is not supported, we may be in a sandbox that doesn't allow it.
+                        // We can still attempt to set the badge and hope for the best, but we should also
+                        // request authorization just in case it is a permissions issue.
+                        self.requestBadgeAuthorizationAndSet(center)
                     }
-                } else if settings.badgeSetting == .notSupported {
-                    // If badge setting is not supported, we may be in a sandbox that doesn't allow it.
-                    // We can still attempt to set the badge and hope for the best, but we should also
-                    // request authorization just in case it is a permissions issue.
+
+                case .notDetermined:
+                    // Not determined yet, request authorization for badge
                     self.requestBadgeAuthorizationAndSet(center)
+
+                case .denied, .provisional, .ephemeral:
+                    // In these known non-authorized states, do not attempt to set the badge.
+                    break
+
+                @unknown default:
+                    // Handle future unknown states by doing nothing.
+                    break
                 }
-
-            case .notDetermined:
-                // Not determined yet, request authorization for badge
-                self.requestBadgeAuthorizationAndSet(center)
-
-            case .denied, .provisional, .ephemeral:
-                // In these known non-authorized states, do not attempt to set the badge.
-                break
-
-            @unknown default:
-                // Handle future unknown states by doing nothing.
-                break
             }
         }
     }

@@ -12598,7 +12598,9 @@ test "Terminal: fullReset tracked pins" {
     // Create a tracked pin
     const p = try t.screens.active.pages.trackPin(t.screens.active.cursor.page_pin.*);
     t.fullReset();
-    try testing.expect(t.screens.active.pages.pinIsValid(p.*));
+    if (comptime build_options.slow_runtime_safety) {
+        try testing.expect(t.screens.active.pages.pinIsValid(p.*));
+    }
 }
 
 // https://github.com/mitchellh/ghostty/issues/272

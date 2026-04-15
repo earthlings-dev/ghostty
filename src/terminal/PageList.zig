@@ -3968,7 +3968,7 @@ pub fn trackedPins(self: *const PageList) []const *Pin {
 pub fn pinIsValid(self: *const PageList, p: Pin) bool {
     // This is very slow so we want to ensure we only ever
     // call this during slow runtime safety builds.
-    comptime assert(build_options.slow_runtime_safety);
+    if (comptime !build_options.slow_runtime_safety) return false;
 
     var it = self.pages.first;
     while (it) |node| : (it = node.next) {

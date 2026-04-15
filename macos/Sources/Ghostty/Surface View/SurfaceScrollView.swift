@@ -129,6 +129,12 @@ class SurfaceScrollView: NSView {
             // the posting thread.
             queue: nil
         ) { [weak self] _ in
+            // These observers use queue: nil, so they fire on the posting
+            // thread. In practice AppKit posts on the main thread, but guard
+            // defensively: if somehow off-main, drop the event rather than
+            // crash or async-dispatch (async would defeat the synchronous
+            // override intent documented above).
+            guard Thread.isMainThread else { return }
             MainActor.assumeIsolated {
                 self?.handleScrollerStyleChange()
             }
@@ -145,6 +151,9 @@ class SurfaceScrollView: NSView {
                 // the posting thread.
                 queue: nil
             ) { [weak self] notification in
+                // See note in the preferred-scroller-style observer above:
+                // queue: nil fires on posting thread; guard for main.
+                guard Thread.isMainThread else { return }
                 nonisolated(unsafe) let notification = notification
                 MainActor.assumeIsolated {
                     self?.handleFrameChangeForNSScrollPocket(notification)

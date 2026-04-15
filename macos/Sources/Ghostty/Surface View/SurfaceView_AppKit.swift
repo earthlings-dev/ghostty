@@ -1650,7 +1650,9 @@ extension Ghostty {
             // Note the callback may be executed on a background thread as documented
             // so we need @MainActor since we're reading/writing view state.
             UNUserNotificationCenter.current().add(request) { error in
-                MainActor.assumeIsolated {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+
                     if let error = error {
                         AppDelegate.logger.error("Error scheduling user notification: \(error)")
                         return
